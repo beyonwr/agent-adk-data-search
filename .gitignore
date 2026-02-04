@@ -1,4 +1,6 @@
-.env
-.lock
-.venv
-.toml
+*.env
+*.lock
+*.venv
+*.toml
+
+main.py
