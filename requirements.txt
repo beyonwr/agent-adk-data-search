@@ -1,0 +1,10 @@
+google-adk
+google-genai
+pydantic
+pandas
+python-dateutil
+PyYAML
+mcp
+chromadb
+requests
+litellm
