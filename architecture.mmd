@@ -1,0 +1,395 @@
+%% ============================================================
+%% Agent ADK Data Search - System Architecture Diagram
+%% Framework: Google Agent Development Kit (ADK)
+%% Purpose: 자연어 질의 → SQL 생성 → DB 조회 자동화 시스템
+%% ============================================================
+
+%% ============================================================
+%% 1. 전체 시스템 구조 (High-Level Overview)
+%% ============================================================
+%%
+%% 사용자가 자연어로 데이터를 요청하면, 멀티 에이전트 파이프라인이
+%% 칼럼 추출 → 칼럼 표준화 → SQL 생성/실행의 3단계를 거쳐
+%% PostgreSQL DB에서 결과를 조회하여 반환합니다.
+%% ============================================================
+
+graph TB
+    subgraph USER["👤 사용자"]
+        UserInput["자연어 질의<br/>(한국어)"]
+        UserFile["첨부 파일<br/>(이미지/엑셀)"]
+    end
+
+    subgraph SYSTEM["Agent ADK Data Search System"]
+
+        subgraph ROOT["Root Agent<br/>(agents/agent.py)"]
+            RA["root_agent<br/>LlmAgent<br/>┄┄┄┄┄┄┄┄┄┄<br/>- 요청 분석 및 위임<br/>- 결과 통합 및 응답<br/>- 한국어 출력 강제"]
+        end
+
+        subgraph DSA["Data Search Agent<br/>(sub_agents/data_search_agent/data_search_agent.py)"]
+            SEQ["data_search_agent<br/>SequentialAgent<br/>┄┄┄┄┄┄┄┄┄┄<br/>3개 Loop를 순차 실행"]
+
+            subgraph LOOP1["Loop 1: Column Extraction<br/>(LoopAgent, max 3회)"]
+                CE["column_name_extractor<br/>LlmAgent<br/>┄┄┄┄┄┄┄┄┄┄<br/>- 사용자 질의에서<br/>  칼럼명 키워드 추출<br/>- output: ExtractedColumnNames"]
+                CR["column_name_reviewer<br/>LlmAgent<br/>┄┄┄┄┄┄┄┄┄┄<br/>- 추출 완전성 검증<br/>- 누락 칼럼 지적<br/>- 완료 시 exit tool 호출"]
+                CE -->|"추출 결과<br/>bga_column_names state"| CR
+                CR -->|"피드백<br/>(누락 시 재추출)"| CE
+            end
+
+            subgraph LOOP2["Loop 2: Column Standardization<br/>(LoopAgent — 미구현)"]
+                CS["column_name_standardizer<br/>LlmAgent<br/>┄┄┄┄┄┄┄┄┄┄<br/>- 추출된 칼럼명을<br/>  DB 표준 칼럼명으로 변환"]
+                CSR["column_name_standard_reviewer<br/>LlmAgent<br/>┄┄┄┄┄┄┄┄┄┄<br/>- 표준화 결과 검증"]
+                CS --> CSR
+                CSR -->|"피드백"| CS
+            end
+
+            subgraph LOOP3["Loop 3: SQL Generation<br/>(LoopAgent, max 3회)"]
+                SG["sql_generator<br/>LlmAgent<br/>┄┄┄┄┄┄┄┄┄┄<br/>- 칼럼명 + 참조문서 기반<br/>  SELECT SQL 생성<br/>- AS 절 최소화"]
+                SR["sql_reviewer<br/>LlmAgent<br/>┄┄┄┄┄┄┄┄┄┄<br/>- SQL 정확성 검증<br/>- 조건 칼럼 SELECT 포함 확인<br/>- 통과 시 DB 쿼리 실행"]
+                SG -->|"생성된 SQL"| SR
+                SR -->|"수정 요청<br/>(오류 시 재생성)"| SG
+            end
+
+            SEQ --> LOOP1
+            LOOP1 -->|"추출된 칼럼명<br/>bga_column_names"| LOOP2
+            LOOP2 -->|"표준화된 칼럼명"| LOOP3
+        end
+    end
+
+    subgraph EXTERNAL["외부 서비스"]
+        LLM["LLM 서버<br/>(LiteLlm)<br/>┄┄┄┄┄┄┄┄┄┄<br/>ROOT_AGENT_MODEL<br/>ROOT_AGENT_API_BASE"]
+        PG["PostgreSQL DB<br/>┄┄┄┄┄┄┄┄┄┄<br/>BGA 데이터 저장소<br/>(psycopg async pool)"]
+        CHROMA["ChromaDB<br/>┄┄┄┄┄┄┄┄┄┄<br/>벡터 유사도 검색<br/>칼럼 설명 문서 저장"]
+        EMB["BGE-M3-KO<br/>Embedding 서버<br/>┄┄┄┄┄┄┄┄┄┄<br/>텍스트 → 벡터 변환"]
+    end
+
+    UserInput --> RA
+    UserFile --> RA
+    RA -->|"transfer_to_agent"| SEQ
+    SR -->|"query_bga_database()"| PG
+    SG -.->|"before_model_callback<br/>get_sql_query_references"| CHROMA
+    CHROMA -.->|"유사 문서 조회"| EMB
+    RA <-->|"LLM 호출"| LLM
+    CE <-->|"LLM 호출"| LLM
+    CR <-->|"LLM 호출"| LLM
+    SG <-->|"LLM 호출"| LLM
+    SR <-->|"LLM 호출"| LLM
+    PG -->|"쿼리 결과<br/>(CSV Artifact)"| UserInput
+
+    style LOOP2 stroke-dasharray: 5 5, stroke: #ff6b6b
+    style ROOT fill:#e8f4fd,stroke:#2196F3
+    style DSA fill:#fff8e1,stroke:#FFC107
+    style LOOP1 fill:#e8f5e9,stroke:#4CAF50
+    style LOOP2 fill:#ffebee,stroke:#ff6b6b
+    style LOOP3 fill:#f3e5f5,stroke:#9C27B0
+    style EXTERNAL fill:#fce4ec,stroke:#E91E63
+
+
+%% ============================================================
+%% 2. 데이터 흐름 (Data Flow)
+%% ============================================================
+
+---
+
+flowchart LR
+    subgraph INPUT["입력"]
+        Q["사용자 자연어 질의"]
+        IMG["첨부 이미지 (선택)"]
+    end
+
+    subgraph EXTRACT["1단계: 칼럼 추출"]
+        E1["키워드 분석"]
+        E2["칼럼명 추출<br/>(requested_entity,<br/>requested_columns,<br/>conditional_columns,<br/>inferred_columns)"]
+        E3["추출 검증"]
+    end
+
+    subgraph STANDARD["2단계: 칼럼 표준화"]
+        S1["추출된 칼럼명"]
+        S2["DB 표준 칼럼명<br/>매핑"]
+    end
+
+    subgraph SQLGEN["3단계: SQL 생성"]
+        G1["ChromaDB에서<br/>참조 문서 검색"]
+        G2["SQL SELECT<br/>문 생성"]
+        G3["SQL 검증"]
+        G4["PostgreSQL<br/>쿼리 실행"]
+    end
+
+    subgraph OUTPUT["출력"]
+        O1["CSV Artifact<br/>저장"]
+        O2["Markdown 테이블<br/>사용자 응답"]
+    end
+
+    Q --> E1 --> E2 --> E3
+    E3 -->|"bga_column_names<br/>state"| S1 --> S2
+    S2 --> G1 --> G2 --> G3 --> G4
+    G4 --> O1 --> O2
+    IMG -.->|"before_agent_callback<br/>ImgArtifact 저장"| O1
+
+    style EXTRACT fill:#e8f5e9,stroke:#4CAF50
+    style STANDARD fill:#fff3e0,stroke:#FF9800
+    style SQLGEN fill:#f3e5f5,stroke:#9C27B0
+    style OUTPUT fill:#e3f2fd,stroke:#2196F3
+
+
+%% ============================================================
+%% 3. 콜백 시스템 (Callback Architecture)
+%% ============================================================
+
+---
+
+flowchart TB
+    subgraph CALLBACKS["콜백 시스템 (agents/utils/file_utils.py)"]
+        direction TB
+
+        subgraph BEFORE_AGENT["before_agent_callback"]
+            BA["save_imgfile_artifact<br/>_before_agent_callback()"]
+            BA_DESC["사용자 입력 이미지를<br/>ImgArtifact로 저장"]
+            BA --> BA_DESC
+        end
+
+        subgraph BEFORE_MODEL["before_model_callback"]
+            BM1["remove_non_text_part<br/>_from_llmrequest<br/>_before_model_callback()"]
+            BM1_DESC["LLM 요청에서 inline_data 제거<br/>→ 토큰 사용량 최적화"]
+            BM1 --> BM1_DESC
+
+            BM2["get_sql_query_references<br/>_before_model_callback()"]
+            BM2_DESC["ChromaDB에서 유사 문서 검색<br/>→ LLM 컨텍스트에 주입 (RAG)"]
+            BM2 --> BM2_DESC
+        end
+
+        subgraph AFTER_TOOL["after_tool_callback"]
+            AT["save_file_artifact<br/>_after_tool_callback()"]
+            AT_DESC["도구 실행 결과를 Artifact로 저장<br/>- CSV: 쿼리 결과 테이블<br/>- PNG: 차트 이미지<br/>- XLSX: 통계 리포트"]
+            AT --> AT_DESC
+        end
+    end
+
+    TRIGGER1["Root Agent<br/>호출 시"] -->|"이미지 입력 감지"| BEFORE_AGENT
+    TRIGGER2["LLM 요청<br/>전송 직전"] -->|"모든 에이전트"| BM1
+    TRIGGER2B["SQL Generator<br/>LLM 요청 전"] -->|"sql_generator만"| BM2
+    TRIGGER3["Tool 실행<br/>완료 직후"] -->|"sql_reviewer만"| AFTER_TOOL
+
+    style BEFORE_AGENT fill:#fff9c4,stroke:#F9A825
+    style BEFORE_MODEL fill:#e1f5fe,stroke:#0288D1
+    style AFTER_TOOL fill:#f1f8e9,stroke:#689F38
+
+
+%% ============================================================
+%% 4. 상태 관리 (State Management)
+%% ============================================================
+
+---
+
+flowchart TB
+    subgraph STATE_SYSTEM["상태 관리 시스템"]
+        subgraph CONSTANTS["상수 (constants/constants.py)"]
+            C1["ARTIFACT_STATES = 'artifact_states'"]
+            C2["BGA_COLUMN_NAMES_STATES = 'bga_column_names'"]
+            C3["BGA_COLUMN_NAMES_REF_DOCS_STATES = 'bga_column_names_reference_docs'"]
+            C4["NUM_OF_DISPLAYED_DATA = 5"]
+        end
+
+        subgraph STATE_MGR["State Manager (utils/state_manager_utils.py)"]
+            SM1["_initialize_state()"]
+            SM2["add_artifact_to_state()"]
+            SM3["get_state()"]
+            SM4["delete_state()"]
+            SM5["get_all_states()"]
+            SM6["clear_all_states()"]
+        end
+
+        subgraph MODELS["데이터 모델 (custom_types/data_state.py)"]
+            M1["BaseArtifact<br/>┄┄┄┄┄┄┄┄┄┄<br/>type, filename,<br/>mime_type,<br/>function_call_id,<br/>user_query"]
+            M2["ImgArtifact<br/>┄┄┄┄┄┄┄┄┄┄<br/>type='img'<br/>img_size: Tuple"]
+            M3["TabularArtifact<br/>┄┄┄┄┄┄┄┄┄┄<br/>type='table'<br/>sql_query: str<br/>data_length: int"]
+            M4["AppState<br/>┄┄┄┄┄┄┄┄┄┄<br/>artifacts: List[BaseArtifact]"]
+
+            M1 --> M2
+            M1 --> M3
+            M4 -->|"contains"| M1
+        end
+
+        subgraph TOOL_RESP["Tool 응답 모델 (custom_types/tool_response.py)"]
+            TR1["ToolResponseData<br/>┄┄┄┄┄┄┄┄┄┄<br/>type: image | markdown_table<br/>      | csv_table | excel_table<br/>content: str | list | dict"]
+            TR2["ToolResponse<br/>┄┄┄┄┄┄┄┄┄┄<br/>status: success | error<br/>message: str<br/>data: ToolResponseData"]
+        end
+    end
+
+    SM2 -->|"생성"| M2
+    SM2 -->|"생성"| M3
+    SM1 -->|"초기화"| M4
+    SM3 -->|"반환"| M4
+
+    style CONSTANTS fill:#fff3e0,stroke:#E65100
+    style STATE_MGR fill:#e8eaf6,stroke:#283593
+    style MODELS fill:#e0f2f1,stroke:#00695C
+    style TOOL_RESP fill:#fce4ec,stroke:#880E4F
+
+
+%% ============================================================
+%% 5. 도구 체계 (Tools Architecture)
+%% ============================================================
+
+---
+
+flowchart TB
+    subgraph TOOLS["도구 체계 (sub_agents/data_search_agent/tools/)"]
+        subgraph EXTRACT_TOOLS["칼럼 추출 도구"]
+            T1["exit_column_extraction_loop()<br/>(column_name_extraction_tools.py)<br/>┄┄┄┄┄┄┄┄┄┄<br/>- 칼럼 추출 완료 신호<br/>- escalate=True 설정<br/>- 칼럼 0개 시 에러 반환"]
+        end
+
+        subgraph SQL_TOOLS["SQL 도구"]
+            T2["query_bga_database()<br/>(sql_generator_tools.py)<br/>┄┄┄┄┄┄┄┄┄┄<br/>- PostgreSQL 비동기 쿼리 실행<br/>- 결과를 CSV ToolResponse로 반환<br/>- escalate=True로 루프 탈출"]
+            T3["get_sql_query_references<br/>_before_model_callback()<br/>(sql_generator_tools.py)<br/>┄┄┄┄┄┄┄┄┄┄<br/>- 사용자 질의로 유사 문서 검색<br/>- LLM 컨텍스트에 참조 문서 주입"]
+        end
+
+        subgraph VECTOR_TOOLS["벡터 검색 유틸 (bga_column_name_processor.py)"]
+            T4["_get_embedding()<br/>┄┄┄┄┄┄┄┄┄┄<br/>BGE-M3-KO 모델로<br/>텍스트 임베딩 생성"]
+            T5["get_sim_search()<br/>┄┄┄┄┄┄┄┄┄┄<br/>ChromaDB 벡터 유사도 검색<br/>n_results 개의 유사 문서 반환"]
+            T5 --> T4
+        end
+
+        subgraph REF_DATA["참조 데이터"]
+            T6["layer_info_column_description.json<br/>┄┄┄┄┄┄┄┄┄┄<br/>DB 칼럼 메타데이터 스키마<br/>(table, column_name, description,<br/> data_type, example)"]
+        end
+    end
+
+    CR2["column_name_reviewer"] -->|"호출"| T1
+    SR2["sql_reviewer"] -->|"호출"| T2
+    T3 -->|"호출"| T5
+    T5 -->|"HTTP POST"| EMB2["BGE-M3-KO<br/>Embedding 서버"]
+    T5 -->|"query"| CHROMA2["ChromaDB"]
+    T2 -->|"async query"| PG2["PostgreSQL"]
+
+    style EXTRACT_TOOLS fill:#e8f5e9,stroke:#4CAF50
+    style SQL_TOOLS fill:#f3e5f5,stroke:#9C27B0
+    style VECTOR_TOOLS fill:#e3f2fd,stroke:#2196F3
+    style REF_DATA fill:#fff8e1,stroke:#FFC107
+
+
+%% ============================================================
+%% 6. 모듈 의존성 (Module Dependencies)
+%% ============================================================
+
+---
+
+graph TD
+    subgraph DEPS["모듈 의존성 그래프"]
+        agent_py["agents/agent.py<br/>(Root Agent 정의)"]
+        dsa_py["data_search_agent.py<br/>(SequentialAgent 정의)"]
+        prompt_yaml_root["agents/prompt.yaml<br/>(Root 프롬프트)"]
+        prompt_yaml_dsa["data_search_agent/prompt.yaml<br/>(Sub-agent 프롬프트)"]
+
+        prompt_utils["utils/prompt_utils.py<br/>(YAML 프롬프트 로더)"]
+        file_utils["utils/file_utils.py<br/>(Artifact 콜백 관리)"]
+        state_mgr["utils/state_manager_utils.py<br/>(상태 관리)"]
+        db_utils["utils/database_utils.py<br/>(DB Pool — 미구현)"]
+
+        constants["constants/constants.py<br/>(상수 정의)"]
+
+        data_state["custom_types/data_state.py<br/>(AppState, Artifact 모델)"]
+        tool_response["custom_types/tool_response.py<br/>(ToolResponse 모델)"]
+
+        col_extract["tools/column_name_extraction_tools.py"]
+        sql_tools["tools/sql_generator_tools.py"]
+        bga_proc["tools/bga_column_name_processor.py"]
+        col_json["tools/layer_info_column_description.json"]
+
+        agent_py --> prompt_utils
+        agent_py --> file_utils
+        agent_py --> dsa_py
+        agent_py --> prompt_yaml_root
+
+        dsa_py --> prompt_utils
+        dsa_py --> file_utils
+        dsa_py --> col_extract
+        dsa_py --> sql_tools
+        dsa_py --> prompt_yaml_dsa
+        dsa_py --> constants
+
+        prompt_utils --> prompt_yaml_root
+        prompt_utils --> prompt_yaml_dsa
+
+        file_utils --> state_mgr
+        file_utils --> data_state
+        file_utils --> tool_response
+        file_utils --> constants
+
+        state_mgr --> data_state
+        state_mgr --> constants
+
+        sql_tools --> bga_proc
+        sql_tools --> db_utils
+        sql_tools --> tool_response
+
+        col_extract --> constants
+        col_extract --> tool_response
+
+        bga_proc -.->|"HTTP"| EMB3["BGE-M3-KO 서버"]
+        bga_proc -.->|"HTTP"| CHROMA3["ChromaDB 서버"]
+        sql_tools -.->|"async"| PG3["PostgreSQL DB"]
+    end
+
+    style agent_py fill:#e8f4fd,stroke:#2196F3,stroke-width:2px
+    style dsa_py fill:#fff8e1,stroke:#FFC107,stroke-width:2px
+    style db_utils fill:#ffebee,stroke:#ff6b6b,stroke-dasharray: 5 5
+    style constants fill:#f5f5f5,stroke:#9E9E9E
+    style data_state fill:#e0f2f1,stroke:#00695C
+    style tool_response fill:#fce4ec,stroke:#880E4F
+
+
+%% ============================================================
+%% 7. 디렉토리 구조 (File Structure)
+%% ============================================================
+
+---
+
+graph TD
+    subgraph STRUCTURE["프로젝트 디렉토리 구조"]
+        ROOT_DIR["📁 agent-adk-data-search/"]
+
+        ROOT_DIR --> README["📄 README.md"]
+        ROOT_DIR --> GITIGNORE["📄 .gitignore"]
+        ROOT_DIR --> PYVER["📄 .python-version (3.12)"]
+        ROOT_DIR --> ARCH["📄 architecture.mmd"]
+
+        ROOT_DIR --> AGENTS["📁 agents/"]
+        AGENTS --> AGENT_PY["📄 agent.py — Root Agent"]
+        AGENTS --> PROMPT_ROOT["📄 prompt.yaml — Root 프롬프트"]
+
+        AGENTS --> CONST_DIR["📁 constants/"]
+        CONST_DIR --> CONST_INIT["📄 __init__.py"]
+        CONST_DIR --> CONST_PY["📄 constants.py"]
+
+        AGENTS --> TYPES_DIR["📁 custom_types/"]
+        TYPES_DIR --> TYPES_INIT["📄 __init__.py"]
+        TYPES_DIR --> DATA_STATE["📄 data_state.py"]
+        TYPES_DIR --> TOOL_RESP_PY["📄 tool_response.py"]
+
+        AGENTS --> UTILS_DIR["📁 utils/"]
+        UTILS_DIR --> UTILS_INIT["📄 __init__.py"]
+        UTILS_DIR --> FILE_UTILS["📄 file_utils.py"]
+        UTILS_DIR --> PROMPT_UTILS["📄 prompt_utils.py"]
+        UTILS_DIR --> STATE_MGR_PY["📄 state_manager_utils.py"]
+        UTILS_DIR --> DB_UTILS["📄 database_utils.py ⚠️"]
+        UTILS_DIR --> LOG_UTILS["📄 log_utils.py ⚠️"]
+        UTILS_DIR --> MODEL_COMM["📄 model_communication_utils.py ⚠️"]
+
+        AGENTS --> SUB_DIR["📁 sub_agents/"]
+        SUB_DIR --> SUB_INIT["📄 __init__.py"]
+        SUB_DIR --> DSA_DIR["📁 data_search_agent/"]
+        DSA_DIR --> DSA_INIT["📄 __init__.py"]
+        DSA_DIR --> DSA_PY["📄 data_search_agent.py"]
+        DSA_DIR --> PROMPT_DSA["📄 prompt.yaml"]
+        DSA_DIR --> DSA_SUB["📁 sub_agents/ ⚠️"]
+        DSA_DIR --> TOOLS_DIR["📁 tools/"]
+        TOOLS_DIR --> COL_TOOLS["📄 column_name_extraction_tools.py"]
+        TOOLS_DIR --> SQL_TOOLS_PY["📄 sql_generator_tools.py"]
+        TOOLS_DIR --> BGA_PROC_PY["📄 bga_column_name_processor.py"]
+        TOOLS_DIR --> COL_JSON["📄 layer_info_column_description.json"]
+    end
+
+    style DB_UTILS fill:#ffebee,stroke:#ff6b6b
+    style LOG_UTILS fill:#ffebee,stroke:#ff6b6b
+    style MODEL_COMM fill:#ffebee,stroke:#ff6b6b
+    style DSA_SUB fill:#ffebee,stroke:#ff6b6b
