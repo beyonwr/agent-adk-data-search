@@ -15,7 +15,7 @@ from ...utils.file_utils import save_file_artifact_after_tool_callback
 from ...utils.prompt_utils import get_prompt_yaml
 
 MODEL = LiteLlm(
-        model=os.getenv("ROOT_AGENT_MODEL", "openai/gpt-4"),
+        model=os.getenv("ROOT_AGENT_MODEL"),
         api_base=os.getenv("ROOT_AGENT_API_BASE"),
         extra_headers={
             "Authorization": os.getenv("PADO_API_KEY")
