@@ -2,5 +2,6 @@
 *.lock
 *.venv
 *.toml
+*.json
 
 main.py
