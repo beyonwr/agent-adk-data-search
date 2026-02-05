@@ -23,7 +23,7 @@ def get_prompt_yaml(tag, path=None):
         path = os.path.join(caller_dir, path)
         path = os.path.abspath(path)
 
-    with open(path, "r", encoding='utr-8') as f:
+    with open(path, "r", encoding='utf-8') as f:
         config = yaml.safe_load(f)
 
     keys = tag.split(".")
