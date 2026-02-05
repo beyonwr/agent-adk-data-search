@@ -8,3 +8,4 @@ mcp
 chromadb
 requests
 litellm
+pandas

@@ -4,7 +4,7 @@ import logging
 import re
 import aiohttp
 
-def parse_json_code_block(test: str): 
+def parse_json_code_block(text: str): 
     """
     Finds and parses a JSON object from a string
     wrapped in a ```json ... ``` code block.json
@@ -50,6 +50,8 @@ async def post_single_url_async(session, url, payload):
         async with session.post(url, json=payload, timeout=10) as response:
             response.raise_for_status()
 
+            data = await response.json()
+            
             logging.debug(f"Finished data for {payload['id']=} {data=}")
 
             return payload, data 
