@@ -8,7 +8,7 @@ from agents.constants.constants import BGA_COLUMN_NAMES_STATES
 from agents.sub_agents.data_search_agent.tools import (
     exit_column_extraction_loop,
     query_bga_database,
-    get_sql
+    get_sql_query_references_before_model_callback,
 )
 
 from ...utils.file_utils import save_file_artifact_after_tool_callback
