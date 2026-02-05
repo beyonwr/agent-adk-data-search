@@ -26,6 +26,7 @@ root_agent = Agent(
     name = "root_agent",
     model = MODEL,
     instruction=ROOT_AGENT_PROMPT,
+    tools=[AgentTool(agent=data_search_agent)],
     sub_agents=[data_search_agent],
     # before_agent_callback = save_imgfile_artifact_before_agent_callback,
     # before_model_callback = remove_non_text_part_from_llmrequest_before_model_callback,
