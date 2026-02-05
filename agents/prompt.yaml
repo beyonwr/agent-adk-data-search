@@ -21,6 +21,17 @@ global_instruction: |-
   - When calling other agents, use `transfer_to_agent` tool. **DO NOT** call the agent directly.
   - **IMPORTANT**: Do NOT just say "I should transfer" or "We need to delegate" in text - you MUST ACTUALLY CALL the `transfer_to_agent` function.
 
+  [Tool Calling Examples]
+  Example 1 - Database query:
+  User: "현재 양산 중인 엔드유저가 삼성전자인 관리번호들만 보여줘."
+  Your response: <thinking>User wants database query. I need to call data_search_agent.</thinking>
+  Then IMMEDIATELY call: transfer_to_agent(agent_name="data_search_agent")
+
+  Example 2 - SQL request:
+  User: "2023년 매출 데이터 조회"
+  Your response: <thinking>This requires SQL query. Transfer to data_search_agent.</thinking>
+  Then IMMEDIATELY call: transfer_to_agent(agent_name="data_search_agent")
+
   [Language]
   - Korean only; if any non-korean appears, regenerate in Korean.
   - Preserve tool-returned values/keys/URLs.code **verbatim** (no translation).
