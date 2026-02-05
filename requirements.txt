@@ -5,6 +5,6 @@ pandas
 python-dateutil
 PyYAML
 mcp
-chromadb==1.0.0
+chromadb
 requests
 litellm
