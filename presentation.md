@@ -41,17 +41,22 @@ style: |
 
 ### Part 1. Google Agent Development Kit (ADK)
 1. ADK 개요 및 배경
-2. 핵심 개념 (Agent, Tool, Callback)
-3. Multi-Agent 시스템 아키텍처
-4. 주요 기능 및 개발자 도구
-5. 배포 및 에코시스템
+2. 핵심 개념 — Agent 유형 총정리
+3. 핵심 개념 — Tool (도구) 심화
+4. 핵심 개념 — Callback & Session/Memory
+5. 핵심 개념 — Agent 정의 코드 예시
+6. Multi-Agent 시스템 아키텍처
+7. Multi-Agent — 에이전트 간 통신 패턴
+8. Multi-Agent — 워크플로우 오케스트레이션 패턴
+9. 주요 기능 및 개발자 도구
+10. 배포 및 에코시스템
 
 ### Part 2. Data Search Agent 프로젝트
-6. 프로젝트 개요 및 목적
-7. 디렉토리 구조
-8. Agent 구성 및 실행 흐름
-9. 핵심 도구(Tools) 및 유틸리티
-10. 상태 관리 및 데이터 모델
+11. 프로젝트 개요 및 목적
+12. 디렉토리 구조
+13. Agent 구성 및 실행 흐름
+14. 핵심 도구(Tools) 및 유틸리티
+15. 상태 관리 및 데이터 모델
 
 ---
 
@@ -84,38 +89,195 @@ Google이 **Cloud NEXT 2025**에서 발표한 **오픈소스 AI 에이전트 개
 
 ---
 
-# 2. 핵심 개념: Agent, Tool, Callback
+# 2. 핵심 개념 — Agent 유형 총정리
 
-## Agent (에이전트)
+## Agent란?
 
-에이전트는 **특정 작업을 수행하는 기본 단위**
+에이전트는 ADK에서 **특정 작업을 수행하는 자율적 단위**. 두 가지 대분류로 나뉩니다.
 
-| 유형 | 클래스 | 설명 |
-|------|--------|------|
-| **LLM Agent** | `LlmAgent` | LLM 기반 추론 수행, 자연어 이해 및 의사결정 |
-| **Sequential Agent** | `SequentialAgent` | 하위 에이전트를 순서대로 실행 |
-| **Loop Agent** | `LoopAgent` | 조건 충족까지 반복 실행 |
-| **Parallel Agent** | `ParallelAgent` | 하위 에이전트를 병렬로 실행 |
+### LLM 기반 에이전트 (지능형)
 
-## Tool (도구)
+| 클래스 | 특징 | 사용 시점 |
+|--------|------|----------|
+| `LlmAgent` (`Agent`) | LLM을 사용하여 **추론·의사결정·도구 호출** 수행 | 자연어 이해, 분류, 판단이 필요한 작업 |
 
-에이전트에게 **대화 외의 능력**을 부여 (API 호출, DB 쿼리, 코드 실행 등)
+- `instruction`: 에이전트의 역할과 행동 규칙 정의 (프롬프트)
+- `model`: 사용할 LLM 모델 지정 (Gemini, LiteLLM 등)
+- `tools`: 에이전트가 호출 가능한 도구 목록
+- `sub_agents`: 작업을 위임할 하위 에이전트 목록
+- `output_key`: 에이전트 응답을 세션 상태에 자동 저장
 
-## Callback (콜백)
+### 워크플로우 에이전트 (비LLM, 결정론적)
 
-에이전트 실행의 **특정 시점에 실행되는 커스텀 코드**
+| 클래스 | 실행 방식 | 사용 시점 |
+|--------|----------|----------|
+| `SequentialAgent` | 하위 에이전트를 **순서대로** 실행 | 파이프라인, 단계별 처리 |
+| `LoopAgent` | 종료 조건까지 **반복** 실행 | 검증-수정 사이클, 반복 정제 |
+| `ParallelAgent` | 하위 에이전트를 **병렬** 실행 | 독립적 작업 동시 처리 |
 
-- `before_agent_callback` / `after_agent_callback`
-- `before_model_callback` / `after_model_callback`
-- `before_tool_callback` / `after_tool_callback`
+> 워크플로우 에이전트는 LLM 호출 없이 **제어 흐름만 담당**하므로 비용 없이 오케스트레이션 가능
 
 ---
 
-# 3. Multi-Agent 시스템 아키텍처
+# 3. 핵심 개념 — Tool (도구) 심화
+
+## Tool이란?
+
+에이전트에게 **대화 이외의 능력**을 부여하는 실행 가능한 함수
+
+> LLM은 "무엇을 할지" 결정하고, Tool은 "실제로 실행"합니다
+
+## Tool 유형 분류
+
+| 유형 | 설명 | 예시 |
+|------|------|------|
+| **Function Tool** | Python 함수를 도구로 등록 | `def search_db(query): ...` |
+| **Agent Tool** | 다른 에이전트를 도구로 호출 | `AgentTool(agent=sub_agent)` |
+| **Built-in Tool** | ADK 기본 제공 도구 | Google Search, Code Execution |
+| **MCP Tool** | Model Context Protocol 서버 연동 | 외부 MCP 서버의 도구 |
+| **Third-party Tool** | LangChain 등 외부 프레임워크 도구 | LangChain Tool 래핑 |
+
+## Function Tool 정의 패턴
+
+```python
+# 방법 1: 함수 정의 → ADK가 자동으로 스키마 생성
+def get_weather(city: str) -> dict:
+    """도시의 현재 날씨를 조회합니다."""  # ← docstring이 LLM에 설명으로 전달
+    return {"city": city, "temp": 22}
+
+# 방법 2: ToolContext로 에이전트 상태 접근
+def save_result(data: str, tool_context: ToolContext):
+    """결과를 세션 상태에 저장합니다."""
+    tool_context.state["result"] = data
+```
+
+> `ToolContext`를 매개변수에 포함하면 ADK가 자동 주입 → **세션 상태, 아티팩트에 접근 가능**
+
+---
+
+# 4. 핵심 개념 — Callback & Session/Memory
+
+## Callback (콜백) 시스템
+
+에이전트 실행 **라이프사이클의 특정 시점**에 커스텀 로직을 삽입하는 메커니즘
+
+```
+요청 수신
+  │
+  ▼
+┌─ before_agent_callback ──────────────────────────┐
+│                                                   │
+│  ┌─ before_model_callback ────────────────────┐  │
+│  │  LLM 호출                                   │  │
+│  └─ after_model_callback ─────────────────────┘  │
+│                                                   │
+│  ┌─ before_tool_callback ─────────────────────┐  │
+│  │  Tool 실행                                   │  │
+│  └─ after_tool_callback ──────────────────────┘  │
+│                                                   │
+└─ after_agent_callback ───────────────────────────┘
+  │
+  ▼
+응답 반환
+```
+
+| 콜백 | 주요 활용 사례 |
+|------|---------------|
+| `before_agent_callback` | 입력 전처리, 인증 검사, 아티팩트 저장 |
+| `after_agent_callback` | 결과 후처리, 로깅, 상태 정리 |
+| `before_model_callback` | 프롬프트 수정, 컨텍스트 주입, 토큰 최적화 |
+| `after_model_callback` | 응답 필터링, 안전성 검사 |
+| `before_tool_callback` | 파라미터 검증, 권한 확인 |
+| `after_tool_callback` | 결과 변환, 아티팩트 저장 |
+
+## Session & Memory
+
+| 구분 | 저장소 | 수명 | 용도 |
+|------|--------|------|------|
+| **Session State** | `session.state` | 대화 세션 동안 | 현재 대화의 임시 데이터 |
+| **Memory Service** | Memory Store | 세션 간 영구 | 사용자 선호도, 과거 대화 요약 |
+
+---
+
+# 5. 핵심 개념 — Agent 정의 코드 예시
+
+## LLM Agent 정의
+
+```python
+from google.adk.agents import Agent
+from google.adk.models.lite_llm import LiteLlm
+
+root_agent = Agent(
+    name="root_agent",
+    model=LiteLlm(model="gemini/gemini-2.0-flash"),  # 모델 지정
+    instruction="당신은 데이터 분석 도우미입니다...",   # 시스템 프롬프트
+    tools=[search_db, generate_chart],                # 사용 가능한 도구
+    sub_agents=[data_agent, report_agent],            # 하위 에이전트
+    before_agent_callback=my_pre_hook,                # 콜백 등록
+    output_key="agent_response",                      # 상태 자동 저장
+)
+```
+
+## 워크플로우 에이전트 조합 예시
+
+```python
+from google.adk.agents import SequentialAgent, LoopAgent
+
+# 추출 → 검증 반복 루프
+extraction_loop = LoopAgent(
+    name="extraction_loop",
+    max_iterations=3,                     # 최대 반복 횟수
+    sub_agents=[extractor, reviewer],     # 순서대로 반복 실행
+)
+
+# 전체 파이프라인: 추출 루프 → SQL 생성 루프
+pipeline = SequentialAgent(
+    name="pipeline",
+    sub_agents=[extraction_loop, sql_loop],  # 순차 실행
+)
+```
+
+## 핵심 포인트
+
+| 개념 | 설명 |
+|------|------|
+| **Agent = 선언적 정의** | 클래스 인스턴스 생성으로 에이전트 구성 완료 |
+| **조합 가능 (Composable)** | 에이전트 안에 에이전트를 중첩하여 복잡한 워크플로우 구성 |
+| **관심사 분리** | 각 에이전트는 하나의 역할만 담당 → 테스트·디버깅 용이 |
+| **프롬프트 외부화** | YAML 파일에서 프롬프트를 로드하여 코드와 분리 가능 |
+
+---
+
+# 6. Multi-Agent 시스템 아키텍처
 
 ## 이벤트 기반 런타임 (Event-Driven Runtime)
 
-LLM을 단순 요청-응답 시스템이 아닌, **에이전트 · 도구 · 상태를 오케스트레이션**하는 구조
+ADK 런타임은 에이전트·도구·콜백 간의 모든 상호작용을 **Event 스트림**으로 처리합니다.
+
+```
+┌──────────────────────────────────────────────────────────┐
+│                      ADK Runtime                         │
+│                                                          │
+│  User ──▶ Runner ──▶ Session ──▶ Agent ──▶ Event Stream  │
+│                         │                       │        │
+│                    ┌────┴────┐            ┌─────┴─────┐  │
+│                    │  State  │            │   Events   │  │
+│                    │ (dict)  │            │ (stream)   │  │
+│                    └─────────┘            └───────────┘  │
+└──────────────────────────────────────────────────────────┘
+```
+
+### 핵심 런타임 컴포넌트
+
+| 컴포넌트 | 역할 |
+|----------|------|
+| **Runner** | 에이전트 실행을 시작하고 이벤트를 수집하는 진입점 |
+| **Session** | 대화 컨텍스트, 상태(state), 이벤트 히스토리 관리 |
+| **Event** | 에이전트·도구 실행 결과를 담는 불변 데이터 단위 |
+| **State** | 에이전트 간 데이터를 공유하는 딕셔너리 (`session.state`) |
+| **Artifact Service** | 파일(CSV, 이미지 등)을 저장·조회하는 서비스 |
+
+## 에이전트 계층 구조
 
 ```
                     ┌─────────────┐
@@ -136,15 +298,122 @@ LLM을 단순 요청-응답 시스템이 아닌, **에이전트 · 도구 · 상
               └──────────┘ └──────────┘
 ```
 
-## 에이전트 간 통신 방식
+---
 
-- **LLM 기반 전달 (Transfer)**: LLM이 판단하여 하위 에이전트에 위임
-- **AgentTool 호출**: 에이전트를 도구처럼 명시적으로 호출
-- **A2A 프로토콜**: 원격 에이전트 간 통신 (Agent-to-Agent Protocol)
+# 7. Multi-Agent — 에이전트 간 통신 패턴
+
+## 3가지 통신 메커니즘
+
+### 1. LLM 기반 전달 (Transfer / Delegation)
+
+LLM이 **자율적으로 판단**하여 하위 에이전트에게 작업을 위임
+
+```
+Root Agent (LLM 판단)
+  │ "이 질문은 데이터 검색이 필요하다"
+  ▼
+Data Search Agent ──▶ 결과를 Root Agent에 반환
+```
+
+- `sub_agents=[agent_a, agent_b]`로 등록하면 LLM이 적절한 에이전트 선택
+- 유연하지만 LLM 판단에 의존 → 비결정론적
+
+### 2. AgentTool (명시적 도구 호출)
+
+에이전트를 **Tool처럼** 명시적으로 호출 → 결과를 즉시 받아 활용
+
+```python
+from google.adk.tools import AgentTool
+
+research_tool = AgentTool(agent=research_agent)
+
+main_agent = Agent(
+    tools=[research_tool],  # 에이전트를 도구로 등록
+)
+```
+
+- 호출하는 에이전트가 **제어권을 유지**
+- 결과를 받아 후속 처리 가능 → 파이프라인에 적합
+
+### 3. A2A 프로토콜 (Agent-to-Agent)
+
+**원격 에이전트** 간 표준화된 통신 프로토콜
+
+- 서로 다른 프레임워크, 서로 다른 서버에서 실행되는 에이전트 연결
+- JSON-RPC 기반 메시지 교환
+- 에이전트 디스커버리, 태스크 관리, 스트리밍 지원
 
 ---
 
-# 4. 주요 기능 및 개발자 도구
+# 8. Multi-Agent — 워크플로우 오케스트레이션 패턴
+
+## 대표적 오케스트레이션 패턴 비교
+
+### 패턴 1: Sequential (순차 파이프라인)
+
+```
+┌────────┐    ┌────────┐    ┌────────┐
+│ Step 1 │ ──▶│ Step 2 │ ──▶│ Step 3 │
+│ 데이터  │    │  변환   │    │  출력   │
+│  수집   │    │  처리   │    │  생성   │
+└────────┘    └────────┘    └────────┘
+```
+
+**적용**: ETL 파이프라인, 단계별 데이터 정제, 문서 처리
+
+### 패턴 2: Loop + Review (반복 검증)
+
+```
+     ┌──────────────────────────────┐
+     │                              │
+     ▼                              │
+┌──────────┐    ┌──────────┐   NG   │
+│ Generator│ ──▶│ Reviewer │ ──────┘
+│ (생성)    │    │ (검증)    │
+└──────────┘    └────┬─────┘
+                     │ OK
+                     ▼
+                  다음 단계
+```
+
+**적용**: SQL 생성-검증, 코드 리뷰, 품질 검사 루프
+
+### 패턴 3: Parallel + Aggregation (병렬 수집)
+
+```
+              ┌──────────┐
+         ┌───▶│ Source A │───┐
+         │    └──────────┘   │
+┌────────┤    ┌──────────┐   ├───▶ ┌────────────┐
+│ Splitter├───▶│ Source B │───┤     │ Aggregator │
+└────────┤    └──────────┘   │     └────────────┘
+         │    ┌──────────┐   │
+         └───▶│ Source C │───┘
+              └──────────┘
+```
+
+**적용**: 다중 소스 검색, A/B 비교 분석, 앙상블 생성
+
+### 패턴 4: Hierarchical (계층적 위임) — 본 프로젝트에서 사용
+
+```
+┌────────────────────────────────────────────┐
+│  Root Agent (최상위 오케스트레이터)           │
+│  └─ SequentialAgent (파이프라인)             │
+│       ├─ LoopAgent (컬럼 추출 반복 검증)     │
+│       │    ├─ LlmAgent (Extractor)          │
+│       │    └─ LlmAgent (Reviewer)           │
+│       └─ LoopAgent (SQL 생성 반복 검증)      │
+│            ├─ LlmAgent (Generator)          │
+│            └─ LlmAgent (Reviewer)           │
+└────────────────────────────────────────────┘
+```
+
+> 여러 패턴을 **중첩·조합**하여 복잡한 워크플로우를 선언적으로 구성 가능
+
+---
+
+# 9. 주요 기능 및 개발자 도구
 
 ## 주요 기능
 
@@ -170,7 +439,7 @@ adk eval my_agent       # 에이전트 평가
 
 ---
 
-# 5. 배포 및 에코시스템
+# 10. 배포 및 에코시스템
 
 ## 배포 옵션
 
@@ -207,7 +476,7 @@ adk eval my_agent       # 에이전트 평가
 
 ---
 
-# 6. 프로젝트 개요 및 목적
+# 11. 프로젝트 개요 및 목적
 
 ## 프로젝트 목적
 
@@ -233,7 +502,7 @@ adk eval my_agent       # 에이전트 평가
 
 ---
 
-# 7. 디렉토리 구조
+# 12. 디렉토리 구조
 
 ```
 agent-adk-data-search/
@@ -267,7 +536,7 @@ agent-adk-data-search/
 
 ---
 
-# 8. Agent 구성 및 실행 흐름
+# 13. Agent 구성 및 실행 흐름
 
 ## 전체 실행 흐름
 
@@ -309,7 +578,7 @@ agent-adk-data-search/
 
 ---
 
-# 9. 핵심 도구(Tools) 및 유틸리티
+# 14. 핵심 도구(Tools) 및 유틸리티
 
 ## Tools
 
@@ -347,7 +616,7 @@ def get_sim_search(query_list: list[str], n_results: int = 3):
 
 ---
 
-# 10. 상태 관리 및 데이터 모델
+# 15. 상태 관리 및 데이터 모델
 
 ## 상태 키 상수 (`constants.py`)
 
