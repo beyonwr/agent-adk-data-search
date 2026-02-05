@@ -59,7 +59,7 @@ _column_name_extractor = LlmAgent(
     description=COLUMN_NAME_EXTRACTOR_DESCRIPTION,
     model=LiteLlm(
         model=os.getenv("ROOT_AGENT_MODEL", ""),
-        api_base=os.getenv("ROOT_AGNET_API_BASE"),
+        api_base=os.getenv("ROOT_AGENT_API_BASE"),
         stream=False,
     ),
     output_key=BGA_COLUMN_NAMES_STATES,

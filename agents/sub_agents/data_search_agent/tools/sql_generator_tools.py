@@ -2,7 +2,7 @@ import json
 import logging 
 
 from google.adk.tools import ToolContext
-from google.adk.agnets.callback_context import CallbackContext
+from google.adk.agents.callback_context import CallbackContext
 from google.adk.models import LlmRequest
 from google.genai.types import Content, Part 
 

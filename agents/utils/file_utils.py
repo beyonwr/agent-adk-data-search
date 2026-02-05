@@ -271,7 +271,7 @@ async def save_imgfile_artifact_before_agent_callback(
     callback_context: CallbackContext,
 ) -> Optional[types.Content]:
     """
-    before_agnet_callback to save a file through artifact to use later.
+    before_agent_callback to save a file through artifact to use later.
     
     Args:
     
