@@ -81,7 +81,7 @@ _column_name_reviewer = LlmAgent(
     tools=[exit_column_extraction_loop]
 )
 
-_column_name_extraction_loop_agent = LoopAgent(
+column_name_extraction_loop_agent = LoopAgent(
     name="column_name_extraction_loop",
     sub_agents=[_column_name_extractor, _column_name_reviewer],
     max_iterations=3,
@@ -121,7 +121,6 @@ data_search_agent = SequentialAgent(
     name="data_search_agent",
     sub_agents=[
         column_name_extraction_loop_agent,
-        column_name_standardization_loop_agent,
         sql_generation_loop_agent,
     ],
 )
