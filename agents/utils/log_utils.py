@@ -4,7 +4,7 @@ import os
 APP_NAME = "agents"
 LOG_DIR_BASE = f"./artifacts/{APP_NAME}"
 
-def get_user_session_logger(user_id: str, session_id: str, specified_name: str="") -> logging.logger:
+def get_user_session_logger(user_id: str, session_id: str, specified_name: str="") -> logging.Logger:
     """
     Gets or creates a logger for a specific session.
     A new FileHandler is added only if one doesn't already exist.
