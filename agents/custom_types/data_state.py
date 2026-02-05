@@ -26,7 +26,7 @@ class ImgArtifact(BaseArtifact):
     type: Literal["img"] = "img"
     img_size: Optional[Tuple[int, int]] = None
 
-class TabularArtifact(BaseArtifact):
+class TableArtifact(BaseArtifact):
     """
     테이블 artifact 상태 클래스
     """
@@ -42,7 +42,7 @@ class AppState(BaseModel):
 
     def to_json(self) -> Dict[str, Any]:
         return {
-            'artifacts': [artifacts.to_json() for artifact in self.artifacts]
+            'artifacts': [artifact.to_json() for artifact in self.artifacts]
         }
 
     @classmethod
