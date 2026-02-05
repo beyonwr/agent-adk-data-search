@@ -16,8 +16,10 @@ MODEL = LiteLlm(
         model=os.getenv("ROOT_AGENT_MODEL"),
         api_base=os.getenv("ROOT_AGENT_API_BASE"),
         extra_headers={
+            "Content-Type": "application/json",
             "Authorization": os.getenv("PADO_API_KEY")
         },
+        stream=False,
 )
 
 root_agent = Agent(
