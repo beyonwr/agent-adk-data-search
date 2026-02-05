@@ -9,3 +9,6 @@ chromadb
 requests
 litellm
 pandas
+psycopg_pool
+psycopg 
+
