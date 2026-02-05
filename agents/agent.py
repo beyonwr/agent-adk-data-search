@@ -15,7 +15,11 @@ GLOBAL_INSTRUCTION = get_prompt_yaml(tag="global_instruction")
 root_agent = Agent(
     name = "root_agent",
     model=LiteLlm(
-        model=os.getenv("ROOT_AGENT_MODEL", ""),
+        # model=os.getenv("ROOT_AGENT_MODEL", ""),
+        model='openai/',
+        extra_headers={
+            "Authorization": os.getenv("PADO_API_KEY")
+        },
         api_base=os.getenv("ROOT_AGENT_API_BASE"),
         stream=False,
     ),

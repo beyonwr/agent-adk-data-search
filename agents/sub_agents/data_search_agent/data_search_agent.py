@@ -58,7 +58,11 @@ _column_name_extractor = LlmAgent(
     name="column_name_extractor",
     description=COLUMN_NAME_EXTRACTOR_DESCRIPTION,
     model=LiteLlm(
-        model=os.getenv("ROOT_AGENT_MODEL", ""),
+        # model=os.getenv("ROOT_AGENT_MODEL", ""),
+        model='openai/',
+        extra_headers={
+            "Authorization": os.getenv("PADO_API_KEY")
+        },
         api_base=os.getenv("ROOT_AGENT_API_BASE"),
         stream=False,
     ),
@@ -73,7 +77,11 @@ _column_name_reviewer = LlmAgent(
     name="column_name_reviewer",
     description=COLUMN_NAME_REVIEWER_DESCRIPTION,
     model=LiteLlm(
-        model=os.getenv("ROOT_AGENT_MODEL", ""),
+        # model=os.getenv("ROOT_AGENT_MODEL", ""),
+        model='openai/',
+        extra_headers={
+            "Authorization": os.getenv("PADO_API_KEY")
+        },
         api_base=os.getenv("ROOT_AGENT_API_BASE"),
         stream=False,
     ),
@@ -91,7 +99,11 @@ _sql_generator = LlmAgent(
     name="sqk_generator",
     description=SQL_GENERATOR_DESCRIPTION,
     model = LiteLlm(
-        model=os.getenv("ROOT_AGENT_MODEL", ""),
+        # model=os.getenv("ROOT_AGENT_MODEL", ""),
+        model='openai/',
+        extra_headers={
+            "Authorization": os.getenv("PADO_API_KEY")
+        },
         api_base=os.getenv("ROOT_AGENT_API_BASE"),
         stream=False,
     ),
@@ -102,7 +114,11 @@ _sql_reviewer = LlmAgent(
     name="sql_reviewer",
     description=SQL_REVIEWER_DESCRIPTION,
     model=LiteLlm(
-        model=os.getenv("ROOT_AGENT_MODEL", ""),
+        # model=os.getenv("ROOT_AGENT_MODEL", ""),
+        model='openai/',
+        extra_headers={
+            "Authorization": os.getenv("PADO_API_KEY")
+        },
         api_base=os.getenv("ROOT_AGENT_API_BASE"),
         stream=False,
     ),
