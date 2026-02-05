@@ -11,4 +11,5 @@ litellm
 pandas
 psycopg_pool
 psycopg[binary]
+python-dotenv
 

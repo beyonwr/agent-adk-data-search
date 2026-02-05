@@ -1,7 +1,10 @@
 import os
+from dotenv import load_dotenv
+
+load_dotenv()
 
 from google.adk.agents import LlmAgent, SequentialAgent, LoopAgent
-from google.adk.models.lite_llm import LiteLlm 
+from google.adk.models.lite_llm import LiteLlm
 from pydantic import BaseModel, Field
 
 from agents.constants.constants import BGA_COLUMN_NAMES_STATES

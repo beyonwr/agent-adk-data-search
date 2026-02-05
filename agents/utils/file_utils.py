@@ -8,6 +8,9 @@ from datetime import datetime
 from enum import Enum
 from typing import Any, Dict, Optional, List
 from dateutil.tz import tzlocal
+from dotenv import load_dotenv
+
+load_dotenv()
 
 import google.genai.types as types
 import pandas as pd

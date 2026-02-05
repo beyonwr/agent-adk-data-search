@@ -1,8 +1,11 @@
 import os
+from dotenv import load_dotenv
 
-from google.adk.agents import Agent 
-from google.adk.models.lite_llm import LiteLlm 
-from google.adk.tools.agent_tool import AgentTool 
+load_dotenv()
+
+from google.adk.agents import Agent
+from google.adk.models.lite_llm import LiteLlm
+from google.adk.tools.agent_tool import AgentTool
 
 from .utils.prompt_utils import get_prompt_yaml
 # from .utils.file_utils import save_imgfile_artifact_before_agent_callback

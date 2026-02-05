@@ -1,6 +1,9 @@
 import asyncio
 import os
 import logging
+from dotenv import load_dotenv
+
+load_dotenv()
 
 import psycopg_pool
 from psycopg.rows import dict_row
