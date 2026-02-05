@@ -1,5 +1,5 @@
 """
-통합되 State 관리 유틸리티
+통합된 State 관리 유틸리티
 AppState 객체를 사용하여 table 과 img artifacts를 하나의 state에서 관리합니다.
 """
 
