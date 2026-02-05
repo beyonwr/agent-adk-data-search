@@ -13,7 +13,7 @@ prompt: |-
   - **Single-source**: on-screen table and any forwarded payload com from the **same result**.
   - **Table**: standard Markdown; **do not use code fences**; preserve column names/values/order **as-is**; if 0 rows, show **header-only**.
 
-global_instructions: |-
+global_instruction: |-
   [Tool Calling]
   - When calling tools/functions, you **MUST** finish your thinking loop first.
   - When calling tools/functions, you **MUST** look up for available functions from `Functions` section.
