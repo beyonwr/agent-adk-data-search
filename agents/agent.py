@@ -13,7 +13,7 @@ ROOT_AGENT_PROMPT = get_prompt_yaml(tag="prompt")
 GLOBAL_INSTRUCTION = get_prompt_yaml(tag="global_instruction")
 
 MODEL = LiteLlm(
-        model='openai/',
+        model=os.getenv("ROOT_AGENT_MODEL", "openai/gpt-4"),
         api_base=os.getenv("ROOT_AGENT_API_BASE"),
         extra_headers={
             "Authorization": os.getenv("PADO_API_KEY")
