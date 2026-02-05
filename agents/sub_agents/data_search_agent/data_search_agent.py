@@ -15,7 +15,7 @@ from ...utils.file_utils import save_file_artifact_after_tool_callback
 from ...utils.prompt_utils import get_prompt_yaml
 
 MODEL = LiteLlm(
-        model='openai/',
+        model=os.getenv("ROOT_AGENT_MODEL", "openai/gpt-4"),
         api_base=os.getenv("ROOT_AGENT_API_BASE"),
         extra_headers={
             "Authorization": os.getenv("PADO_API_KEY")
@@ -89,7 +89,7 @@ column_name_extraction_loop_agent = LoopAgent(
 )
 
 _sql_generator = LlmAgent(
-    name="sqk_generator",
+    name="sql_generator",
     description=SQL_GENERATOR_DESCRIPTION,
     model = MODEL,
     instruction=(SQL_GENERATOR_INSTRUCTION),
