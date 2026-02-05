@@ -14,6 +14,15 @@ from agents.sub_agents.data_search_agent.tools import (
 from ...utils.file_utils import save_file_artifact_after_tool_callback
 from ...utils.prompt_utils import get_prompt_yaml
 
+MODEL = LiteLlm(
+        model='openai/',
+        api_base=os.getenv("ROOT_AGENT_API_BASE"),
+        extra_headers={
+            "Authorization": os.getenv("PADO_API_KEY")
+        },
+)
+
+
 COLUMN_NAME_EXTRACTOR_DESCRIPTION = get_prompt_yaml(
     tag="column_name_extractor_description"
 )
@@ -57,15 +66,7 @@ class ExtractedColumnNames(BaseModel):
 _column_name_extractor = LlmAgent(
     name="column_name_extractor",
     description=COLUMN_NAME_EXTRACTOR_DESCRIPTION,
-    model=LiteLlm(
-        # model=os.getenv("ROOT_AGENT_MODEL", ""),
-        model='openai/',
-        extra_headers={
-            "Authorization": os.getenv("PADO_API_KEY")
-        },
-        api_base=os.getenv("ROOT_AGENT_API_BASE"),
-        stream=False,
-    ),
+    model=MODEL,
     output_key=BGA_COLUMN_NAMES_STATES,
     output_schema=ExtractedColumnNames,
     instruction=COLUMN_NAME_EXTRACTOR_INSTRUCTION,
@@ -76,15 +77,7 @@ _column_name_extractor = LlmAgent(
 _column_name_reviewer = LlmAgent(
     name="column_name_reviewer",
     description=COLUMN_NAME_REVIEWER_DESCRIPTION,
-    model=LiteLlm(
-        # model=os.getenv("ROOT_AGENT_MODEL", ""),
-        model='openai/',
-        extra_headers={
-            "Authorization": os.getenv("PADO_API_KEY")
-        },
-        api_base=os.getenv("ROOT_AGENT_API_BASE"),
-        stream=False,
-    ),
+    model=MODEL,
     instruction=COLUMN_NAME_REVIEWER_INSTRUCTION,
     tools=[exit_column_extraction_loop]
 )
@@ -98,30 +91,14 @@ column_name_extraction_loop_agent = LoopAgent(
 _sql_generator = LlmAgent(
     name="sqk_generator",
     description=SQL_GENERATOR_DESCRIPTION,
-    model = LiteLlm(
-        # model=os.getenv("ROOT_AGENT_MODEL", ""),
-        model='openai/',
-        extra_headers={
-            "Authorization": os.getenv("PADO_API_KEY")
-        },
-        api_base=os.getenv("ROOT_AGENT_API_BASE"),
-        stream=False,
-    ),
+    model = MODEL,
     instruction=(SQL_GENERATOR_INSTRUCTION),
 )
 
 _sql_reviewer = LlmAgent(
     name="sql_reviewer",
     description=SQL_REVIEWER_DESCRIPTION,
-    model=LiteLlm(
-        # model=os.getenv("ROOT_AGENT_MODEL", ""),
-        model='openai/',
-        extra_headers={
-            "Authorization": os.getenv("PADO_API_KEY")
-        },
-        api_base=os.getenv("ROOT_AGENT_API_BASE"),
-        stream=False,
-    ),
+    model=MODEL,
     instruction=(SQL_REVIEWER_INSTRUCTION),
     tools=[query_bga_database],
     after_tool_callback=[save_file_artifact_after_tool_callback],

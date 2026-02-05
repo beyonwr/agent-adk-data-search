@@ -12,19 +12,18 @@ from .sub_agents import data_search_agent
 ROOT_AGENT_PROMPT = get_prompt_yaml(tag="prompt")
 GLOBAL_INSTRUCTION = get_prompt_yaml(tag="global_instruction")
 
-root_agent = Agent(
-    name = "root_agent",
-    model=LiteLlm(
-        # model=os.getenv("ROOT_AGENT_MODEL", ""),
+MODEL = LiteLlm(
         model='openai/',
+        api_base=os.getenv("ROOT_AGENT_API_BASE"),
         extra_headers={
             "Authorization": os.getenv("PADO_API_KEY")
         },
-        api_base=os.getenv("ROOT_AGENT_API_BASE"),
-        stream=False,
-    ),
-    instruction=ROOT_AGENT_PROMPT,
+)
 
+root_agent = Agent(
+    name = "root_agent",
+    model = MODEL,
+    instruction=ROOT_AGENT_PROMPT,
     sub_agents=[data_search_agent],
     # before_agent_callback = save_imgfile_artifact_before_agent_callback,
     # before_model_callback = remove_non_text_part_from_llmrequest_before_model_callback,
