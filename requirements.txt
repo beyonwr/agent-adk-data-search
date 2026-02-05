@@ -10,5 +10,5 @@ requests
 litellm
 pandas
 psycopg_pool
-psycopg 
+psycopg[binary]
 
