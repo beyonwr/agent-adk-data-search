@@ -37,23 +37,16 @@ COLUMN_NAME_REVIEWER_DESCRIPTION = get_prompt_yaml(
 COLUMN_NAME_REVIEWER_INSTRUCTION = get_prompt_yaml(
     tag="column_name_reviewer_instruction"
 )
-COLUMN_NAME_STANDARDIZER_DESCRIPTION = get_prompt_yaml(
-    tag="column_name_standardizer_description"
-)
-COLUMN_NAME_STANDARDIZER_INSTRUCTION = get_prompt_yaml(
-    tag="column_name_standardizer_instruction"
-)
-COLUMN_NAME_STANDARD_REVIEWER_DESCRIPTION = get_prompt_yaml(
-    tag="column_name_standard_reviewer_description"
-)
-COLUMN_NAME_STANDARD_REVIEWER_INSTRUCTION = get_prompt_yaml(
-    tag="column_name_standard_reviewer_instruction"
-)
+POSTGRESQL_DB_NAME = os.getenv("POSTGRESQL_DB_NAME", "")
 
 SQL_GENERATOR_DESCRIPTION = get_prompt_yaml(tag="sql_generator_description")
-SQL_GENERATOR_INSTRUCTION = get_prompt_yaml(tag="sql_generator_instruction")
+SQL_GENERATOR_INSTRUCTION = get_prompt_yaml(tag="sql_generator_instruction").replace(
+    "__POSTGRESQL_DB_NAME__", POSTGRESQL_DB_NAME
+)
 SQL_REVIEWER_DESCRIPTION = get_prompt_yaml(tag="sql_reviewer_description")
-SQL_REVIEWER_INSTRUCTION = get_prompt_yaml(tag="sql_reviewer_instruction")
+SQL_REVIEWER_INSTRUCTION = get_prompt_yaml(tag="sql_reviewer_instruction").replace(
+    "__POSTGRESQL_DB_NAME__", POSTGRESQL_DB_NAME
+)
 
 class ExtractedSingleColumnName(BaseModel):
     extracted_column_name: str = Field(

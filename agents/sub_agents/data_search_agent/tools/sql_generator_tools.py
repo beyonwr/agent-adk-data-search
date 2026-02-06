@@ -6,6 +6,7 @@ from google.adk.agents.callback_context import CallbackContext
 from google.adk.models import LlmRequest
 from google.genai.types import Content, Part 
 
+from agents.constants.constants import BGA_COLUMN_NAMES_REF_DOCS_STATES
 from agents.custom_types.tool_response import ToolResponse, ToolResponseData
 from agents.sub_agents.data_search_agent.tools.bga_column_name_processor import (
     get_sim_search,
@@ -63,17 +64,22 @@ def get_sql_query_references_before_model_callback(
 ):
     user_input = callback_context.user_content.parts[0].text
     docs = get_sim_search([user_input], n_results=5)[0]
+    docs_json = json.dumps(docs, ensure_ascii=False)
+
+    # Store in state so {{bga_column_names_reference_docs?}} template works for sql_reviewer too
+    callback_context.state[BGA_COLUMN_NAMES_REF_DOCS_STATES] = docs_json
+
     context_contents = Content(
         parts = [
             Part(
-                text=f"Retrieved docs relevant to user query: {json.dumps(docs, ensure_ascii=False)}"
+                text=f"Retrieved docs relevant to user query: {docs_json}"
             )
         ],
         role="user",
     )
     llm_request.contents.append(context_contents)
     logging.debug(f"{llm_request=}")
-    return 
+    return
 
 
 
