@@ -95,6 +95,7 @@ _sql_generator = LlmAgent(
     description=SQL_GENERATOR_DESCRIPTION,
     model = MODEL,
     instruction=(SQL_GENERATOR_INSTRUCTION),
+    before_model_callback=get_sql_query_references_before_model_callback,
 )
 
 _sql_reviewer = LlmAgent(
