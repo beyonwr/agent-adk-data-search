@@ -61,8 +61,8 @@ async def query_bga_database(generated_sql: str, tool_context: ToolContext):
 def get_sql_query_references_before_model_callback(
     callback_context: CallbackContext, llm_request: LlmRequest
 ):
-    user_input = callback_context.user_content.parts[0].text 
-    docs = get_sim_search(user_input, n_results=5)
+    user_input = callback_context.user_content.parts[0].text
+    docs = get_sim_search([user_input], n_results=5)[0]
     context_contents = Content(
         parts = [
             Part(

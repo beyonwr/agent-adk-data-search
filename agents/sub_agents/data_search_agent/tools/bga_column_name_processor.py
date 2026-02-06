@@ -6,7 +6,7 @@ import chromadb.config
 import requests
 
 CHROMADB_HOST = os.getenv("CHROMADB_HOST")
-CHROMADB_PORT = os.getenv("CHROMADB_PORT")
+CHROMADB_PORT = int(os.getenv("CHROMADB_PORT", "8000"))
 CHROMADB_COLLECTION_NAME = os.getenv("CHROMADB_COLLECTION_NAME")
 TEXT_EMBEDDING_MODEL_URL = os.getenv("TEXT_EMBEDDING_MODEL_URL")
 TEXT_EMBEDDING_MODEL_NAME = os.getenv("TEXT_EMBEDDING_MODEL_NAME")
@@ -32,7 +32,7 @@ def get_sim_search(query_list: list[str], n_results: int=3):
     chroma_client = chromadb.HttpClient(
         host=CHROMADB_HOST,
         port=CHROMADB_PORT,
-        settings=chromadb.config.Settings(allow_reset=True, annoymized_telemetry=False)
+        settings=chromadb.config.Settings(allow_reset=True, anonymized_telemetry=False)
     )
 
     collection = chroma_client.get_collection(CHROMADB_COLLECTION_NAME)
