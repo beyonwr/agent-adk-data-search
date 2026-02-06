@@ -5,8 +5,9 @@ import chromadb
 import chromadb.config
 import requests
 
-BGA_LAYER_DB_DESCRIPTIONS_VECTOR_DB_HOST = os.getenv("BGA_LAYER_DB_DESCRIPTIONS_VECTOR_DB_HOST")
-BGA_LAYER_DB_DESCRIPTIONS_VECTOR_DB_COLLECTION = os.getenv("BGA_LAYER_DB_DESCRIPTIONS_VECTOR_DB_COLLECTION")
+CHROMADB_HOST = os.getenv("CHROMADB_HOST")
+CHROMADB_PORT = os.getenv("CHROMADB_PORT", "8000")
+CHROMADB_COLLECTION_NAME = os.getenv("CHROMADB_COLLECTION_NAME")
 TEXT_EMBEDDING_MODEL_URL = os.getenv("TEXT_EMBEDDING_MODEL_URL")
 TEXT_EMBEDDING_MODEL_NAME = os.getenv("TEXT_EMBEDDING_MODEL_NAME")
 
@@ -29,11 +30,12 @@ def _get_embedding(text_list: list[str]) -> list[list[float]]:
 
 def get_sim_search(query_list: list[str], n_results: int=3):
     chroma_client = chromadb.HttpClient(
-        host=BGA_LAYER_DB_DESCRIPTIONS_VECTOR_DB_HOST,
+        host=CHROMADB_HOST,
+        port=int(CHROMADB_PORT),
         settings=chromadb.config.Settings(allow_reset=True, annoymized_telemetry=False)
     )
 
-    collection = chroma_client.get_collection(BGA_LAYER_DB_DESCRIPTIONS_VECTOR_DB_COLLECTION)
+    collection = chroma_client.get_collection(CHROMADB_COLLECTION_NAME)
 
     embeddings = _get_embedding(query_list)
 
