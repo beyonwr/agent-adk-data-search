@@ -133,7 +133,7 @@ flowchart LR
     end
 
     Q --> E1 --> E2 --> E3
-    E3 -->|"bga_column_names<br/>state"| S1 --> S2
+    E3 -->|"column_names<br/>state"| S1 --> S2
     S2 --> G1 --> G2 --> G3 --> G4
     G4 --> O1 --> O2
     IMG -.->|"before_agent_callback<br/>ImgArtifact 저장"| O1
@@ -148,7 +148,7 @@ flowchart LR
 
 | 단계 | Agent | 핵심 동작 | 출력 |
 |------|-------|-----------|------|
-| **1. 칼럼 추출** | `column_name_extractor` + `reviewer` | 자연어에서 요청 엔티티, 칼럼, 조건 칼럼, 추론 칼럼 추출 | `bga_column_names` state |
+| **1. 칼럼 추출** | `column_name_extractor` + `reviewer` | 자연어에서 요청 엔티티, 칼럼, 조건 칼럼, 추론 칼럼 추출 | `column_names` state |
 | **2. 칼럼 표준화** | (미구현) | 추출된 키워드를 실제 DB 칼럼명으로 매핑 | 표준화된 칼럼명 |
 | **3. SQL 생성** | `sql_generator` + `reviewer` | RAG 참조문서 기반 SQL 생성 → 검증 → PostgreSQL 실행 | CSV Artifact + Markdown 테이블 |
 
@@ -216,8 +216,8 @@ flowchart TB
     subgraph STATE_SYSTEM["상태 관리 시스템"]
         subgraph CONSTANTS["상수 (constants/constants.py)"]
             C1["ARTIFACT_STATES = 'artifact_states'"]
-            C2["BGA_COLUMN_NAMES_STATES = 'bga_column_names'"]
-            C3["BGA_COLUMN_NAMES_REF_DOCS_STATES<br/>= 'bga_column_names_reference_docs'"]
+            C2["COLUMN_NAMES_STATES = 'column_names'"]
+            C3["COLUMN_NAMES_REF_DOCS_STATES<br/>= 'column_names_reference_docs'"]
             C4["NUM_OF_DISPLAYED_DATA = 5"]
         end
 
@@ -263,8 +263,8 @@ flowchart TB
 | State 키 | 타입 | 용도 |
 |-----------|------|------|
 | `artifact_states` | `AppState` | 현재 세션의 Artifact 목록 (이미지, 테이블) |
-| `bga_column_names` | `str` | 추출된 BGA 칼럼명 목록 |
-| `bga_column_names_reference_docs` | `str` | ChromaDB에서 검색된 참조 문서 |
+| `column_names` | `str` | 추출된 BGA 칼럼명 목록 |
+| `column_names_reference_docs` | `str` | ChromaDB에서 검색된 참조 문서 |
 
 ---
 

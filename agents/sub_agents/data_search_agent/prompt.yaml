@@ -19,7 +19,7 @@ column_name_extractor_instruction: |-
   4) Each item must contain exactly **one** column name.
 
   [Column Names]
-  {{bga_column_names?}}
+  {{column_names?}}
 
 
 column_name_reviewer_description: |-
@@ -44,7 +44,7 @@ column_name_reviewer_instruction: |-
   11) If column name extraction is complete, call `exit_column_extraction_loop` tool to finish your job.
 
   [Column Names]
-  {{bga_column_names?}}
+  {{column_names?}}
 
 sql_generator_description: |-
   Agent that generates PostgreSQL SELECT statements from user query and extracted column metadata.
@@ -68,10 +68,10 @@ sql_generator_instruction: |-
   6) **DO NOT** use the AS clause unless it is necessary. Avoid redundant aliases like minor typographical changes (such as changing word cases, simple typo changes, or pluralization), or simple translation to other languages.
 
   [Column Names]
-  `{{bga_column_names?}}`
+  `{{column_names?}}`
 
   [Reference Documents]
-  `{{bga_column_names_reference_docs?}}`
+  `{{column_names_reference_docs?}}`
 
 sql_reviewer_description: |-
   Agent that reviews and validates generated SQL statements before executing them against the database.
@@ -96,10 +96,10 @@ sql_reviewer_instruction: |-
   8) If the SQL has issues, provide specific revision suggestions to the SQL Generator.
 
   [Column Names]
-  `{{bga_column_names?}}`
+  `{{column_names?}}`
 
   [Reference Documents]
-  `{{bga_column_names_reference_docs?}}`
+  `{{column_names_reference_docs?}}`
 
   [Agent Specific Rules]
   - When your task is finished and data has been properly retrieved, you **MUST** simply notify the user with the data length and instruct them to find the data in the attachment file.
