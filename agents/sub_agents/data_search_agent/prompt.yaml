@@ -55,8 +55,9 @@ sql_generator_instruction: |-
 
   [Database Information]
   - Target PostgreSQL database: `__POSTGRESQL_DB_NAME__`
+  - Target table: `__POSTGRESQL_DB_TABLE__`
   - Reference documents contain column metadata with `column_name` (actual DB column name), `column_name_korean` (Korean name), `description`, `data_type`, and `example` values.
-  - Use the table/view names found in [Reference Documents] for the FROM clause.
+  - Use the target table name (`__POSTGRESQL_DB_TABLE__`) for the FROM clause.
 
   [Workflow]
   1) Examine the user query to understand the data retrieval intent.
@@ -81,7 +82,8 @@ sql_reviewer_instruction: |-
 
   [Database Information]
   - Target PostgreSQL database: `__POSTGRESQL_DB_NAME__`
-  - Column names from reference documents marked as `column_name` are the actual column names used in the database.
+  - Target table: `__POSTGRESQL_DB_TABLE__`
+  - Column names from reference documents marked as `column_name` are the actual column names used in the table.
 
   [Workflow]
   1) You **MUST** first examine the generated SQL query and review it. Use the actual column names from reference documents — the `column_name` field represents the real DB column name.

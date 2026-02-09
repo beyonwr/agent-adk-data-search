@@ -38,14 +38,19 @@ COLUMN_NAME_REVIEWER_INSTRUCTION = get_prompt_yaml(
     tag="column_name_reviewer_instruction"
 )
 POSTGRESQL_DB_NAME = os.getenv("POSTGRESQL_DB_NAME", "")
+POSTGRESQL_DB_TABLE = os.getenv("POSTGRESQL_DB_TABLE", "")
 
 SQL_GENERATOR_DESCRIPTION = get_prompt_yaml(tag="sql_generator_description")
 SQL_GENERATOR_INSTRUCTION = get_prompt_yaml(tag="sql_generator_instruction").replace(
     "__POSTGRESQL_DB_NAME__", POSTGRESQL_DB_NAME
+).replace(
+    "__POSTGRESQL_DB_TABLE__", POSTGRESQL_DB_TABLE
 )
 SQL_REVIEWER_DESCRIPTION = get_prompt_yaml(tag="sql_reviewer_description")
 SQL_REVIEWER_INSTRUCTION = get_prompt_yaml(tag="sql_reviewer_instruction").replace(
     "__POSTGRESQL_DB_NAME__", POSTGRESQL_DB_NAME
+).replace(
+    "__POSTGRESQL_DB_TABLE__", POSTGRESQL_DB_TABLE
 )
 
 class ExtractedSingleColumnName(BaseModel):
