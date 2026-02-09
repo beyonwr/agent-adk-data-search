@@ -1,0 +1,27 @@
+[
+    {
+        "column_name": "col1",
+        "column_name_korean": "col1 의 한글명",
+        "description": "col1 에 대한 자세한 설명",
+        "data_type": "varchar",
+        "example": [
+            "AA000",
+            "AA001",
+            "AA002"
+        ]
+
+    },
+    
+    {
+        "column_name": "col2",
+        "column_name_korean": "col2 의 한글명",
+        "description": "col2 에 대한 자세한 설명",
+        "data_type": "text",
+        "example": [
+            "BB000",
+            "BB001",
+            "BB002"
+        ]
+
+    }
+]

@@ -1,0 +1,10 @@
+*.env
+*.lock
+*.venv
+*.toml
+*.pyc
+
+
+main.py
+agents/.adk
+.adk
