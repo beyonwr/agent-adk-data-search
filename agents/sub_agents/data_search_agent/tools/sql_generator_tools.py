@@ -16,6 +16,7 @@ from agents.utils.database_utils import POOL
 
 MAX_COLUMNS = 20
 MAX_ROWS = 300
+VECTOR_SEARCH_TOP_K = 20
 
 def _serialize_for_cell(data):
     """
@@ -74,7 +75,7 @@ def get_sql_query_references_before_model_callback(
     callback_context: CallbackContext, llm_request: LlmRequest
 ):
     user_input = callback_context.user_content.parts[0].text
-    docs = get_sim_search([user_input], n_results=5)[0]
+    docs = get_sim_search([user_input], n_results=VECTOR_SEARCH_TOP_K)[0]
     docs_json = json.dumps(docs, ensure_ascii=False)
 
     # Store in state so {{column_names_reference_docs?}} template works for sql_reviewer too

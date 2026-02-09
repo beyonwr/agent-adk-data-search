@@ -28,7 +28,7 @@ def _get_embedding(text_list: list[str]) -> list[list[float]]:
     embeddings = list(map(lambda data: data["embedding"], res_data))
     return embeddings
 
-def get_sim_search(query_list: list[str], n_results: int=3):
+def get_sim_search(query_list: list[str], n_results: int=20):
     chroma_client = chromadb.HttpClient(
         host=CHROMADB_HOST,
         port=CHROMADB_PORT,
