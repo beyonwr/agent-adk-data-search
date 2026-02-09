@@ -66,6 +66,8 @@ sql_generator_instruction: |-
   4) If user input has conditional statements for certain columns, you **MUST** include those column names in the SELECT clause as well, **UNLESS** the SQL statement includes aggregation functions (GROUP BY).
   5) Try to add columns from the WHERE clause into the SELECT clause to show that the result is filtered properly, unless it is logically faulty.
   6) **DO NOT** use the AS clause unless it is necessary. Avoid redundant aliases like minor typographical changes (such as changing word cases, simple typo changes, or pluralization), or simple translation to other languages.
+  7) Always use actual DB column names from `column_name` in the SELECT clause (not Korean names).
+  8) Limit selected columns to **at most 20** and set SQL row limit to **at most 300**.
 
   [Column Names]
   `{{column_names?}}`
@@ -92,8 +94,10 @@ sql_reviewer_instruction: |-
   4) Check if all conditions the user requested are included in the WHERE clause.
   5) To verify that the result contains records meeting user-provided conditions, add conditional columns to the SELECT clause unless it is logically faulty.
   6) When adding temporal conditions, comparison operators like `>`, `<`, `<=`, `>=` **MUST** be used for clarity, instead of `BETWEEN` or `EXTRACT`.
-  7) If the generated SQL query is correct and passes the review, call `query_bga_database` tool with the SQL to execute it and return the result to the user.
-  8) If the SQL has issues, provide specific revision suggestions to the SQL Generator.
+  7) Verify SELECT uses actual DB column names from `column_name` and includes no more than 20 columns.
+  8) Verify row count is limited to at most 300 (add LIMIT 300 if missing or larger).
+  9) If the generated SQL query is correct and passes the review, call `query_bga_database` tool with the SQL to execute it and return the result to the user.
+  10) If the SQL has issues, provide specific revision suggestions to the SQL Generator.
 
   [Column Names]
   `{{column_names?}}`
