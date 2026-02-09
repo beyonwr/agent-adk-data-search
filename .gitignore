@@ -2,6 +2,7 @@
 *.lock
 *.venv
 *.toml
+*.pyc
 
 
 main.py
