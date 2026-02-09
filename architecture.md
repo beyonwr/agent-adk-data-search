@@ -2,7 +2,7 @@
 
 > **Framework**: Google Agent Development Kit (ADK)
 > **목적**: 자연어 질의 → SQL 생성 → DB 조회 자동화 시스템
-> **언어**: Python 3.12
+> **언어**: Python 3.13
 
 ---
 
@@ -22,7 +22,7 @@
 
 ## 1. 전체 시스템 구조
 
-사용자가 한국어 자연어로 데이터를 요청하면, **Root Agent**가 요청을 분석하여 **Data Search Agent**(SequentialAgent)에 위임합니다. Data Search Agent는 3개의 **LoopAgent**를 순차 실행하여 칼럼 추출 → 칼럼 표준화 → SQL 생성/실행을 수행합니다.
+사용자가 한국어 자연어로 데이터를 요청하면, **Root Agent**가 요청을 분석하여 **Data Search Agent**(SequentialAgent)에 위임합니다. Data Search Agent는 2개의 **LoopAgent**를 순차 실행하여 칼럼 추출 → SQL 생성/실행을 수행합니다.
 
 ```mermaid
 graph TB
@@ -38,7 +38,7 @@ graph TB
         end
 
         subgraph DSA["Data Search Agent<br/>sub_agents/data_search_agent/data_search_agent.py"]
-            SEQ["data_search_agent<br/>SequentialAgent<br/>┄┄┄┄┄┄┄┄┄┄<br/>3개 Loop를 순차 실행"]
+            SEQ["data_search_agent<br/>SequentialAgent<br/>┄┄┄┄┄┄┄┄┄┄<br/>2개 Loop를 순차 실행"]
 
             subgraph LOOP1["Loop 1: Column Extraction<br/>(LoopAgent, max 3회)"]
                 CE["column_name_extractor<br/>LlmAgent<br/>┄┄┄┄┄┄┄┄┄┄<br/>사용자 질의에서<br/>칼럼명 키워드 추출"]
@@ -47,14 +47,7 @@ graph TB
                 CR -->|"피드백"| CE
             end
 
-            subgraph LOOP2["Loop 2: Column Standardization<br/>(LoopAgent — 미구현)"]
-                CS["column_name_standardizer"]
-                CSR["column_name_standard_reviewer"]
-                CS --> CSR
-                CSR -->|"피드백"| CS
-            end
-
-            subgraph LOOP3["Loop 3: SQL Generation<br/>(LoopAgent, max 3회)"]
+            subgraph LOOP2["Loop 2: SQL Generation<br/>(LoopAgent, max 3회)"]
                 SG["sql_generator<br/>LlmAgent<br/>┄┄┄┄┄┄┄┄┄┄<br/>칼럼명 + 참조문서 기반<br/>SELECT SQL 생성"]
                 SR["sql_reviewer<br/>LlmAgent<br/>┄┄┄┄┄┄┄┄┄┄<br/>SQL 검증 후<br/>DB 쿼리 실행"]
                 SG -->|"생성된 SQL"| SR
@@ -63,7 +56,6 @@ graph TB
 
             SEQ --> LOOP1
             LOOP1 -->|"추출된 칼럼명"| LOOP2
-            LOOP2 -->|"표준화된 칼럼명"| LOOP3
         end
     end
 
@@ -85,16 +77,12 @@ graph TB
     SG <-->|"LLM 호출"| LLM
     PG -->|"쿼리 결과 (CSV)"| UserInput
 
-    style LOOP2 stroke-dasharray: 5 5, stroke: #ff6b6b
     style ROOT fill:#e8f4fd,stroke:#2196F3
     style DSA fill:#fff8e1,stroke:#FFC107
     style LOOP1 fill:#e8f5e9,stroke:#4CAF50
-    style LOOP2 fill:#ffebee,stroke:#ff6b6b
-    style LOOP3 fill:#f3e5f5,stroke:#9C27B0
+    style LOOP2 fill:#f3e5f5,stroke:#9C27B0
     style EXTERNAL fill:#fce4ec,stroke:#E91E63
 ```
-
-> **참고**: Loop 2 (Column Standardization)는 현재 코드에서 참조되지만 아직 구현되지 않았습니다 (점선 표시).
 
 ---
 
@@ -115,12 +103,7 @@ flowchart LR
         E3["추출 검증"]
     end
 
-    subgraph STANDARD["2단계: 칼럼 표준화"]
-        S1["추출된 칼럼명"]
-        S2["DB 표준 칼럼명<br/>매핑"]
-    end
-
-    subgraph SQLGEN["3단계: SQL 생성"]
+    subgraph SQLGEN["2단계: SQL 생성"]
         G1["ChromaDB에서<br/>참조 문서 검색"]
         G2["SQL SELECT<br/>문 생성"]
         G3["SQL 검증"]
@@ -133,13 +116,11 @@ flowchart LR
     end
 
     Q --> E1 --> E2 --> E3
-    E3 -->|"column_names<br/>state"| S1 --> S2
-    S2 --> G1 --> G2 --> G3 --> G4
+    E3 -->|"column_names<br/>state"| G1 --> G2 --> G3 --> G4
     G4 --> O1 --> O2
     IMG -.->|"before_agent_callback<br/>ImgArtifact 저장"| O1
 
     style EXTRACT fill:#e8f5e9,stroke:#4CAF50
-    style STANDARD fill:#fff3e0,stroke:#FF9800
     style SQLGEN fill:#f3e5f5,stroke:#9C27B0
     style OUTPUT fill:#e3f2fd,stroke:#2196F3
 ```
@@ -149,45 +130,44 @@ flowchart LR
 | 단계 | Agent | 핵심 동작 | 출력 |
 |------|-------|-----------|------|
 | **1. 칼럼 추출** | `column_name_extractor` + `reviewer` | 자연어에서 요청 엔티티, 칼럼, 조건 칼럼, 추론 칼럼 추출 | `column_names` state |
-| **2. 칼럼 표준화** | (미구현) | 추출된 키워드를 실제 DB 칼럼명으로 매핑 | 표준화된 칼럼명 |
-| **3. SQL 생성** | `sql_generator` + `reviewer` | RAG 참조문서 기반 SQL 생성 → 검증 → PostgreSQL 실행 | CSV Artifact + Markdown 테이블 |
+| **2. SQL 생성** | `sql_generator` + `reviewer` | RAG 참조문서 기반 SQL 생성 → 검증 → PostgreSQL 실행 | CSV Artifact + Markdown 테이블 |
 
 ---
 
 ## 3. 콜백 시스템
 
-Google ADK의 콜백 훅을 활용하여 에이전트 실행 전후에 데이터를 가공합니다. 모든 콜백은 `agents/utils/file_utils.py`에 정의되어 있습니다.
+Google ADK의 콜백 훅을 활용하여 에이전트 실행 전후에 데이터를 가공합니다. 모든 콜백은 `agents/utils/file_utils.py`에 정의되어 있습니다 (RAG 콜백은 `tools/sql_generator_tools.py`에 위치).
 
 ```mermaid
 flowchart TB
-    subgraph CALLBACKS["콜백 시스템 (agents/utils/file_utils.py)"]
+    subgraph CALLBACKS["콜백 시스템"]
         direction TB
 
-        subgraph BEFORE_AGENT["before_agent_callback"]
+        subgraph BEFORE_AGENT["before_agent_callback<br/>(agents/utils/file_utils.py)"]
             BA["save_imgfile_artifact<br/>_before_agent_callback()"]
-            BA_DESC["사용자 입력 이미지를<br/>ImgArtifact로 저장"]
+            BA_DESC["사용자 입력 이미지를<br/>ImgArtifact로 저장<br/>(현재 비활성화)"]
             BA --> BA_DESC
         end
 
         subgraph BEFORE_MODEL["before_model_callback"]
-            BM1["remove_non_text_part<br/>_from_llmrequest<br/>_before_model_callback()"]
-            BM1_DESC["LLM 요청에서 inline_data 제거<br/>토큰 사용량 최적화"]
+            BM1["remove_non_text_part<br/>_from_llmrequest<br/>_before_model_callback()<br/>(agents/utils/file_utils.py)"]
+            BM1_DESC["LLM 요청에서 inline_data 제거<br/>토큰 사용량 최적화<br/>(현재 비활성화)"]
             BM1 --> BM1_DESC
 
-            BM2["get_sql_query_references<br/>_before_model_callback()"]
+            BM2["get_sql_query_references<br/>_before_model_callback()<br/>(tools/sql_generator_tools.py)"]
             BM2_DESC["ChromaDB 유사 문서 검색<br/>LLM 컨텍스트에 주입 (RAG)"]
             BM2 --> BM2_DESC
         end
 
-        subgraph AFTER_TOOL["after_tool_callback"]
+        subgraph AFTER_TOOL["after_tool_callback<br/>(agents/utils/file_utils.py)"]
             AT["save_file_artifact<br/>_after_tool_callback()"]
             AT_DESC["도구 실행 결과를 Artifact로 저장<br/>CSV / PNG / XLSX"]
             AT --> AT_DESC
         end
     end
 
-    TRIGGER1["Root Agent 호출 시"] -->|"이미지 입력 감지"| BEFORE_AGENT
-    TRIGGER2["LLM 요청 전송 직전"] -->|"모든 에이전트"| BM1
+    TRIGGER1["Root Agent 호출 시"] -->|"이미지 입력 감지<br/>(비활성화)"| BEFORE_AGENT
+    TRIGGER2["LLM 요청 전송 직전"] -->|"모든 에이전트<br/>(비활성화)"| BM1
     TRIGGER2B["SQL Generator LLM 요청 전"] -->|"sql_generator만"| BM2
     TRIGGER3["Tool 실행 완료 직후"] -->|"sql_reviewer만"| AFTER_TOOL
 
@@ -198,12 +178,14 @@ flowchart TB
 
 ### 콜백 상세
 
-| 콜백 종류 | 함수명 | 트리거 시점 | 역할 |
-|-----------|--------|-------------|------|
-| `before_agent` | `save_imgfile_artifact_before_agent_callback()` | Root Agent 호출 시 | 사용자 입력 이미지를 `ImgArtifact`로 저장 |
-| `before_model` | `remove_non_text_part_from_llmrequest_before_model_callback()` | 모든 LLM 요청 전 | inline_data 제거하여 토큰 절약 |
-| `before_model` | `get_sql_query_references_before_model_callback()` | SQL Generator LLM 요청 전 | ChromaDB에서 유사 문서 검색 후 컨텍스트 주입 |
-| `after_tool` | `save_file_artifact_after_tool_callback()` | Tool 실행 완료 후 | CSV/PNG/XLSX 결과를 Artifact로 저장 |
+| 콜백 종류 | 함수명 | 트리거 시점 | 역할 | 상태 |
+|-----------|--------|-------------|------|------|
+| `before_agent` | `save_imgfile_artifact_before_agent_callback()` | Root Agent 호출 시 | 사용자 입력 이미지를 `ImgArtifact`로 저장 | 비활성화 |
+| `before_model` | `remove_non_text_part_from_llmrequest_before_model_callback()` | 모든 LLM 요청 전 | inline_data 제거하여 토큰 절약 | 비활성화 |
+| `before_model` | `get_sql_query_references_before_model_callback()` | SQL Generator LLM 요청 전 | ChromaDB에서 유사 문서 검색 후 컨텍스트 주입 | 활성화 |
+| `after_tool` | `save_file_artifact_after_tool_callback()` | Tool 실행 완료 후 | CSV/PNG/XLSX 결과를 Artifact로 저장 | 활성화 |
+
+> **참고**: `save_imgfile_artifact_before_agent_callback`과 `remove_non_text_part_from_llmrequest_before_model_callback`은 `agents/agent.py`에서 주석 처리되어 현재 비활성화 상태입니다.
 
 ---
 
@@ -233,7 +215,7 @@ flowchart TB
         subgraph MODELS["데이터 모델<br/>custom_types/data_state.py"]
             M1["BaseArtifact<br/>┄┄┄┄┄┄┄┄┄┄<br/>type, filename,<br/>mime_type,<br/>function_call_id,<br/>user_query"]
             M2["ImgArtifact<br/>┄┄┄┄┄┄┄┄┄┄<br/>type='img'<br/>img_size: tuple"]
-            M3["TabularArtifact<br/>┄┄┄┄┄┄┄┄┄┄<br/>type='table'<br/>sql_query: str<br/>data_length: int"]
+            M3["TableArtifact<br/>┄┄┄┄┄┄┄┄┄┄<br/>type='table'<br/>sql_query: str<br/>data_length: int"]
             M4["AppState<br/>┄┄┄┄┄┄┄┄┄┄<br/>artifacts: list[BaseArtifact]"]
 
             M1 --> M2
@@ -262,9 +244,9 @@ flowchart TB
 
 | State 키 | 타입 | 용도 |
 |-----------|------|------|
-| `artifact_states` | `AppState` | 현재 세션의 Artifact 목록 (이미지, 테이블) |
-| `column_names` | `str` | 추출된 BGA 칼럼명 목록 |
-| `column_names_reference_docs` | `str` | ChromaDB에서 검색된 참조 문서 |
+| `artifact_states` | `Dict[invocation_id, AppState]` | 현재 세션의 Artifact 목록 (이미지, 테이블) |
+| `column_names` | `ExtractedColumnNames` (JSON) | 추출된 칼럼명 목록 |
+| `column_names_reference_docs` | `str` (JSON) | ChromaDB에서 검색된 참조 문서 |
 
 ---
 
@@ -291,7 +273,7 @@ flowchart TB
         end
 
         subgraph REF_DATA["참조 데이터"]
-            T6["layer_info_column_description.json<br/>┄┄┄┄┄┄┄┄┄┄<br/>DB 칼럼 메타데이터 스키마"]
+            T6["final_dict_raffello_metadata.json<br/>┄┄┄┄┄┄┄┄┄┄<br/>DB 칼럼 메타데이터 스키마"]
         end
     end
 
@@ -335,7 +317,7 @@ graph TD
         prompt_utils["utils/prompt_utils.py<br/>(YAML 로더)"]
         file_utils["utils/file_utils.py<br/>(Artifact 콜백)"]
         state_mgr["utils/state_manager_utils.py<br/>(상태 관리)"]
-        db_utils["utils/database_utils.py<br/>(DB Pool — 미구현)"]
+        db_utils["utils/database_utils.py<br/>(AsyncConnectionPool)"]
 
         constants["constants/constants.py"]
 
@@ -372,6 +354,7 @@ graph TD
         sql_tools --> bga_proc
         sql_tools --> db_utils
         sql_tools --> tool_response
+        sql_tools --> constants
 
         col_extract --> constants
         col_extract --> tool_response
@@ -383,7 +366,7 @@ graph TD
 
     style agent_py fill:#e8f4fd,stroke:#2196F3,stroke-width:2px
     style dsa_py fill:#fff8e1,stroke:#FFC107,stroke-width:2px
-    style db_utils fill:#ffebee,stroke:#ff6b6b,stroke-dasharray: 5 5
+    style db_utils fill:#e8f4fd,stroke:#2196F3
     style constants fill:#f5f5f5,stroke:#9E9E9E
     style data_state fill:#e0f2f1,stroke:#00695C
     style tool_response fill:#fce4ec,stroke:#880E4F
@@ -397,10 +380,13 @@ graph TD
 agent-adk-data-search/
 ├── README.md                          # 프로젝트 설명
 ├── .gitignore                         # Git 무시 규칙
-├── .python-version                    # Python 3.12
+├── .python-version                    # Python 3.13
 ├── architecture.md                    # 이 파일 (아키텍처 문서)
+├── env.sample                         # 환경변수 설정 템플릿
+├── requirements.txt                   # Python 의존성 목록
 │
 └── agents/
+    ├── __init__.py
     ├── agent.py                       # Root Agent 정의
     ├── prompt.yaml                    # Root Agent 프롬프트
     │
@@ -410,34 +396,33 @@ agent-adk-data-search/
     │
     ├── custom_types/
     │   ├── __init__.py                # 타입 export
-    │   ├── data_state.py              # BaseArtifact, ImgArtifact, TabularArtifact, AppState
+    │   ├── data_state.py              # BaseArtifact, ImgArtifact, TableArtifact, AppState
     │   └── tool_response.py           # ToolResponse, ToolResponseData
     │
     ├── utils/
     │   ├── __init__.py                # 유틸리티 export
-    │   ├── file_utils.py              # Artifact 콜백 (364줄, 핵심 모듈)
+    │   ├── file_utils.py              # Artifact 콜백 (핵심 모듈)
     │   ├── prompt_utils.py            # YAML 프롬프트 로더
     │   ├── state_manager_utils.py     # invocation_id 기반 상태 관리
-    │   ├── database_utils.py          # (빈 파일 — DB Pool 미구현)
-    │   ├── log_utils.py               # (빈 파일 — 로깅 미구현)
-    │   └── model_communication_utils.py # (빈 파일 — 모델 통신 미구현)
+    │   ├── database_utils.py          # PostgreSQL AsyncConnectionPool 관리
+    │   ├── log_utils.py               # 세션별 파일 로깅
+    │   └── model_communication_utils.py # JSON 파싱, 비동기 HTTP 통신 유틸
     │
     └── sub_agents/
         ├── __init__.py                # data_search_agent export
         └── data_search_agent/
             ├── __init__.py            # data_search_agent re-export
-            ├── data_search_agent.py   # SequentialAgent + 3개 LoopAgent 정의
+            ├── data_search_agent.py   # SequentialAgent + 2개 LoopAgent 정의
             ├── prompt.yaml            # 4개 LlmAgent 프롬프트
             ├── sub_agents/
             │   └── __init__.py        # (빈 파일 — 중첩 sub-agent 미구현)
             └── tools/
-                ├── column_name_extraction_tools.py  # exit_column_extraction_loop()
-                ├── sql_generator_tools.py           # query_bga_database(), RAG callback
-                ├── bga_column_name_processor.py      # 벡터 임베딩 + ChromaDB 검색
-                └── layer_info_column_description.json # DB 칼럼 메타데이터 스키마
+                ├── __init__.py                       # 도구 export
+                ├── column_name_extraction_tools.py   # exit_column_extraction_loop()
+                ├── sql_generator_tools.py            # query_bga_database(), RAG callback
+                ├── bga_column_name_processor.py       # 벡터 임베딩 + ChromaDB 검색
+                └── final_dict_raffello_metadata.json  # DB 칼럼 메타데이터 스키마
 ```
-
-> **범례**: `(빈 파일)` = 아직 구현되지 않은 placeholder 파일
 
 ---
 
@@ -447,16 +432,16 @@ agent-adk-data-search/
 
 | 파일 | 줄 수 | 역할 |
 |------|-------|------|
-| `agents/agent.py` | 32 | Root Agent 초기화. LiteLlm 모델 설정, `data_search_agent`를 sub-agent로 등록, 콜백 함수 연결 |
-| `agents/prompt.yaml` | 31 | Root Agent 프롬프트. 역할 지시, 에러 핸들링, 출력 포맷(Markdown 테이블), 한국어 강제, 시간 조건 규칙 |
-| `data_search_agent.py` | 128 | SequentialAgent 정의. Column Extraction Loop → Column Standardization Loop → SQL Generation Loop 3단계 파이프라인 구성 |
-| `data_search_agent/prompt.yaml` | 95 | 4개 LlmAgent (extractor, reviewer, sql_generator, sql_reviewer)의 상세 프롬프트 |
+| `agents/agent.py` | 35 | Root Agent 초기화. LiteLlm 모델 설정, `data_search_agent`를 sub-agent 및 AgentTool로 등록. `before_agent_callback`과 `before_model_callback`은 주석 처리되어 비활성화 |
+| `agents/prompt.yaml` | 23 | Root Agent 프롬프트(`prompt`) 및 전역 지시(`global_instruction`). 역할 지시, 에러 핸들링, 출력 포맷(Markdown 테이블), 한국어 강제 |
+| `data_search_agent.py` | 121 | SequentialAgent 정의. Column Extraction Loop → SQL Generation Loop 2단계 파이프라인 구성. `ExtractedColumnNames` Pydantic 스키마 정의 포함 |
+| `data_search_agent/prompt.yaml` | 105 | 4개 LlmAgent (extractor, reviewer, sql_generator, sql_reviewer)의 상세 프롬프트. DB명/테이블명 템플릿 치환 지원 |
 
 ### 데이터 모델
 
 | 파일 | 줄 수 | 역할 |
 |------|-------|------|
-| `custom_types/data_state.py` | 62 | Pydantic 모델: `BaseArtifact`(기본), `ImgArtifact`(이미지), `TabularArtifact`(테이블), `AppState`(상태 컨테이너) |
+| `custom_types/data_state.py` | 62 | Pydantic 모델: `BaseArtifact`(기본), `ImgArtifact`(이미지), `TableArtifact`(테이블), `AppState`(상태 컨테이너). type-aware 역직렬화 지원 |
 | `custom_types/tool_response.py` | 39 | `ToolResponse`(status/message/data) 및 `ToolResponseData`(type/content). MCP `CallToolResult` 변환 지원 |
 
 ### 유틸리티
@@ -465,16 +450,19 @@ agent-adk-data-search/
 |------|-------|------|
 | `utils/file_utils.py` | 364 | 핵심 Artifact 관리: XLSX 파싱, RAG 서버 연동, before/after 콜백 (이미지 저장, inline_data 제거, CSV/PNG/XLSX Artifact 저장) |
 | `utils/state_manager_utils.py` | 171 | `invocation_id` 기반 상태 CRUD. `AppState` 초기화/조회/삭제/전체조회/전체삭제 |
-| `utils/prompt_utils.py` | 35 | YAML 파일에서 태그 기반으로 프롬프트 로드. 점(`.`) 구분 중첩 태그 지원 |
+| `utils/prompt_utils.py` | 35 | YAML 파일에서 태그 기반으로 프롬프트 로드. 점(`.`) 구분 중첩 태그 지원. 호출자 디렉토리 자동 감지 |
+| `utils/database_utils.py` | 45 | PostgreSQL `AsyncConnectionPool` 초기화 및 관리. 환경변수 기반 연결 정보 설정 (min_size=5, max_size=20) |
+| `utils/log_utils.py` | 37 | 세션별 파일 로깅. `./artifacts/agents/{user_id}/{session_id}/` 경로에 로그 파일 생성 |
+| `utils/model_communication_utils.py` | 77 | JSON 코드 블록 파싱(`parse_json_code_block`), 비동기 단건/병렬 HTTP POST 요청(`post_single_url_async`, `post_parallel_async`) |
 
 ### 도구
 
 | 파일 | 줄 수 | 역할 |
 |------|-------|------|
 | `tools/column_name_extraction_tools.py` | 25 | `exit_column_extraction_loop()`: 칼럼 추출 완료 시 `escalate=True`로 루프 탈출 |
-| `tools/sql_generator_tools.py` | 80 | `query_bga_database()`: PostgreSQL 비동기 쿼리 실행. `get_sql_query_references_before_model_callback()`: RAG 검색 |
-| `tools/bga_column_name_processor.py` | 42 | `_get_embedding()`: BGE-M3-KO 임베딩 생성. `get_sim_search()`: ChromaDB 벡터 유사도 검색 |
-| `tools/layer_info_column_description.json` | 27 | DB 칼럼 메타데이터 스키마 (table, column_name, description, data_type, example) |
+| `tools/sql_generator_tools.py` | 86 | `query_bga_database()`: PostgreSQL 비동기 쿼리 실행. `get_sql_query_references_before_model_callback()`: RAG 검색 및 컨텍스트 주입. `_serialize_for_cell()`: NBSP 제거 유틸 |
+| `tools/bga_column_name_processor.py` | 44 | `_get_embedding()`: BGE-M3-KO 임베딩 생성. `get_sim_search()`: ChromaDB 벡터 유사도 검색 |
+| `tools/final_dict_raffello_metadata.json` | - | DB 칼럼 메타데이터 스키마 (참조 데이터) |
 
 ---
 
@@ -482,15 +470,15 @@ agent-adk-data-search/
 
 | 분류 | 기술 | 용도 |
 |------|------|------|
-| **언어** | Python 3.12 | 전체 시스템 |
-| **에이전트 프레임워크** | Google Agent Development Kit (ADK) | LlmAgent, LoopAgent, SequentialAgent |
+| **언어** | Python 3.13 | 전체 시스템 |
+| **에이전트 프레임워크** | Google Agent Development Kit (ADK) 1.22.1 | LlmAgent, LoopAgent, SequentialAgent |
 | **LLM 연동** | LiteLlm | 다양한 LLM 모델 래퍼 (환경변수로 설정) |
-| **데이터베이스** | PostgreSQL | BGA 데이터 저장소 (psycopg async pool) |
+| **데이터베이스** | PostgreSQL | BGA 데이터 저장소 (psycopg AsyncConnectionPool) |
 | **벡터 DB** | ChromaDB | 칼럼 설명 문서의 벡터 유사도 검색 |
 | **임베딩 모델** | BGE-M3-KO | 한국어 텍스트 벡터 변환 |
 | **데이터 처리** | Pandas | DataFrame 조작, CSV/XLSX 변환 |
 | **직렬화** | Pydantic v2, JSON, YAML | 모델 검증, 상태 직렬화 |
-| **비동기** | asyncio | 비동기 DB 쿼리, 비동기 콜백 |
+| **비동기** | asyncio, aiohttp | 비동기 DB 쿼리, 비동기 HTTP 통신 |
 | **프로토콜** | MCP (Model Context Protocol) | 도구 실행 결과 표준 포맷 |
 
 ---
@@ -501,7 +489,7 @@ agent-adk-data-search/
 |------|-----------|------|
 | **계층적 에이전트** | Root → SequentialAgent → LoopAgent | 관심사 분리 및 태스크 위임 |
 | **반복 정제 (Loop)** | LoopAgent (max 3회) | 추출/생성 결과를 reviewer가 검증, 실패 시 재시도 |
-| **순차 파이프라인** | SequentialAgent | 칼럼 추출 → 표준화 → SQL 생성 순서 보장 |
+| **순차 파이프라인** | SequentialAgent | 칼럼 추출 → SQL 생성 순서 보장 |
 | **콜백 훅** | before_agent / before_model / after_tool | 에이전트 실행 전후 데이터 가공 |
 | **RAG** | ChromaDB + BGE-M3-KO | 유사 문서를 LLM 컨텍스트에 주입하여 SQL 정확도 향상 |
 | **Artifact 관리** | AppState + State Manager | 세션별 독립적 결과물 추적 (이미지, 테이블) |
