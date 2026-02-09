@@ -60,6 +60,7 @@ class ExtractedSingleColumnName(BaseModel):
 
 class ExtractedColumnNames(BaseModel):
     items: list[ExtractedSingleColumnName] = Field(
+        default_factory=list,
         description="The list of column names extracted from user query."
     )
 
