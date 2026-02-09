@@ -4,7 +4,7 @@ from google.adk.agents import LlmAgent, SequentialAgent, LoopAgent
 from google.adk.models.lite_llm import LiteLlm 
 from pydantic import BaseModel, Field
 
-from agents.constants.constants import BGA_COLUMN_NAMES_STATES
+from agents.constants.constants import COLUMN_NAMES_STATES
 from agents.sub_agents.data_search_agent.tools import (
     exit_column_extraction_loop,
     query_bga_database,
@@ -67,7 +67,7 @@ _column_name_extractor = LlmAgent(
     name="column_name_extractor",
     description=COLUMN_NAME_EXTRACTOR_DESCRIPTION,
     model=MODEL,
-    output_key=BGA_COLUMN_NAMES_STATES,
+    output_key=COLUMN_NAMES_STATES,
     output_schema=ExtractedColumnNames,
     instruction=COLUMN_NAME_EXTRACTOR_INSTRUCTION,
     disallow_transfer_to_parent=True,
