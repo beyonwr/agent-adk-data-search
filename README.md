@@ -37,8 +37,10 @@ Root Agent
 - **get_sim_search**: ChromaDB 벡터 유사도 검색
 - **get_sql_query_references**: RAG를 위한 참조 문서 검색
 
+**직접 사용 패턴**: `data_search_agent.py`가 `mcp_server`를 직접 import하여 Tool을 사용합니다. 별도의 래퍼 파일 없이 필요한 곳에서 경량 인라인 어댑터로 ADK ToolContext를 처리합니다.
+
 Tool들은 다음 두 가지 방식으로 사용 가능합니다:
-1. **ADK Tool로 사용**: Google ADK 에이전트에서 직접 호출
+1. **ADK Tool로 사용**: `mcp_server`를 직접 import하여 인라인 어댑터로 호출 (현재 방식)
 2. **MCP 서버로 실행**: 독립 실행형 MCP 서버로 외부 클라이언트에 노출
 
 ## 설치
@@ -135,8 +137,9 @@ agent-adk-data-search/
 │   ├── utils/                  # 유틸리티 함수들
 │   └── sub_agents/
 │       └── data_search_agent/
-│           ├── data_search_agent.py  # Data Search Agent
-│           └── tools/                # Tool 래퍼들
+│           ├── data_search_agent.py  # Data Search Agent (인라인 Tool 어댑터 포함)
+│           └── tools/
+│               └── final_dict_raffello_metadata.json  # DB 메타데이터
 ├── requirements.txt
 ├── env.sample
 ├── README.md
@@ -159,19 +162,22 @@ def your_new_tool(param1: str, param2: int) -> dict:
     return {"status": "success", "data": result}
 ```
 
-2. 필요한 경우 `agents/sub_agents/data_search_agent/tools/`에 ADK 래퍼 생성:
+2. `data_search_agent.py`에서 직접 import하여 사용:
 
 ```python
 from agents import mcp_server
 
-def your_new_tool_wrapper(param1: str, param2: int, tool_context: ToolContext):
-    """ADK wrapper for FastMCP tool"""
+def your_new_tool_adapter(param1: str, param2: int, tool_context: ToolContext):
+    """Lightweight ADK adapter for FastMCP tool"""
     result = mcp_server.your_new_tool(param1, param2)
     # Handle tool_context and convert result
-    return result
+    return ToolResponse(
+        status=result.get("status"),
+        message=result.get("message")
+    ).to_json()
 ```
 
-3. 에이전트 정의에 Tool 등록
+3. 에이전트 정의의 `tools` 리스트에 어댑터 함수 등록
 
 ## 기여
 

@@ -9,11 +9,12 @@
 이 시스템은 **FastMCP**를 사용하여 모든 Tool 구현을 중앙화했습니다:
 
 - **Tool 중앙화**: 모든 Tool 로직이 `agents/mcp_server.py`에 FastMCP 데코레이터로 구현됨
+- **직접 사용**: `data_search_agent.py`가 mcp_server에서 Tool을 직접 import하여 사용
+- **경량 어댑터**: ADK ToolContext 처리를 위한 최소한의 인라인 어댑터만 사용
 - **이중 사용 가능**:
-  1. ADK Tool로 직접 import하여 사용
+  1. ADK Tool로 직접 import하여 사용 (현재 방식)
   2. 독립 실행형 MCP 서버로 실행하여 외부 클라이언트에 노출
-- **ADK 래퍼**: 기존 ADK Tool 파일들은 `mcp_server`의 함수를 호출하는 경량 래퍼로 변경
-- **중복 제거**: Tool 로직이 한 곳에만 존재하여 유지보수성 향상
+- **중복 제거**: Tool 로직이 한 곳에만 존재하여 유지보수성 극대화
 - **MCP 프로토콜 지원**: FastMCP가 자동으로 MCP 프로토콜 구현 및 Tool 문서화 제공
 
 ---
@@ -425,15 +426,11 @@ agent-adk-data-search/
         ├── __init__.py                # data_search_agent export
         └── data_search_agent/
             ├── __init__.py            # data_search_agent re-export
-            ├── data_search_agent.py   # SequentialAgent + 2개 LoopAgent 정의
+            ├── data_search_agent.py   # ⭐ SequentialAgent + 2개 LoopAgent + 인라인 Tool 어댑터
             ├── prompt.yaml            # 4개 LlmAgent 프롬프트
             ├── sub_agents/
             │   └── __init__.py        # (빈 파일 — 중첩 sub-agent 미구현)
             └── tools/
-                ├── __init__.py                       # 도구 export
-                ├── column_name_extraction_tools.py   # ADK 래퍼 for exit_column_extraction_loop
-                ├── sql_generator_tools.py            # ADK 래퍼 for query_bga_database, RAG callback
-                ├── bga_column_name_processor.py      # DEPRECATED 호환성 래퍼
                 └── final_dict_raffello_metadata.json # DB 칼럼 메타데이터 스키마
 ```
 
@@ -447,7 +444,7 @@ agent-adk-data-search/
 |------|-------|------|
 | `agents/agent.py` | 35 | Root Agent 초기화. LiteLlm 모델 설정, `data_search_agent`를 sub-agent 및 AgentTool로 등록. `before_agent_callback`과 `before_model_callback`은 주석 처리되어 비활성화 |
 | `agents/prompt.yaml` | 23 | Root Agent 프롬프트(`prompt`) 및 전역 지시(`global_instruction`). 역할 지시, 에러 핸들링, 출력 포맷(Markdown 테이블), 한국어 강제 |
-| `data_search_agent.py` | 121 | SequentialAgent 정의. Column Extraction Loop → SQL Generation Loop 2단계 파이프라인 구성. `ExtractedColumnNames` Pydantic 스키마 정의 포함 |
+| `data_search_agent.py` | ~230 | **SequentialAgent 정의 + 인라인 Tool 어댑터**. Column Extraction Loop → SQL Generation Loop 2단계 파이프라인 구성. `mcp_server`를 직접 import하여 사용하는 경량 어댑터 함수 3개 포함 (`exit_column_extraction_loop`, `query_bga_database`, `get_sql_query_references_before_model_callback`). `ExtractedColumnNames` Pydantic 스키마 정의 포함 |
 | `data_search_agent/prompt.yaml` | 105 | 4개 LlmAgent (extractor, reviewer, sql_generator, sql_reviewer)의 상세 프롬프트. DB명/테이블명 템플릿 치환 지원 |
 
 ### 데이터 모델
@@ -474,13 +471,11 @@ agent-adk-data-search/
 |------|-------|------|
 | `mcp_server.py` | 208 | **FastMCP 기반 Tool 중앙화 서버**. 모든 Tool 구현을 FastMCP 데코레이터로 정의. ADK Tool에서 직접 import 가능하며, 독립 실행형 MCP 서버로도 사용 가능. Tool: `exit_column_extraction_loop`, `query_bga_database`, `get_sim_search`, `get_sql_query_references` |
 
-### 도구 (ADK 래퍼)
+### 도구 (인라인 어댑터)
 
 | 파일 | 줄 수 | 역할 |
 |------|-------|------|
-| `tools/column_name_extraction_tools.py` | ~40 | **ADK 래퍼**: `exit_column_extraction_loop()`. `mcp_server`의 Tool을 호출하여 칼럼 추출 완료 시 `escalate=True`로 루프 탈출. ToolContext 처리 및 ToolResponse 변환 포함 |
-| `tools/sql_generator_tools.py` | ~100 | **ADK 래퍼**: `query_bga_database()`, `get_sql_query_references_before_model_callback()`. `mcp_server`의 Tool을 호출하여 PostgreSQL 비동기 쿼리 실행 및 RAG 검색 수행. ToolContext/CallbackContext 처리 포함 |
-| `tools/bga_column_name_processor.py` | ~60 | **호환성 래퍼 (DEPRECATED)**: `_get_embedding()`, `get_sim_search()`. 기존 코드 호환성을 위해 `mcp_server`의 함수를 래핑. 새 코드는 `mcp_server`를 직접 import 권장 |
+| `data_search_agent.py` | ~230 | **인라인 Tool 어댑터**: `data_search_agent.py` 내부에 경량 어댑터 함수 정의. `mcp_server`를 직접 import하여 사용하며, ToolContext 처리 및 ToolResponse 변환만 수행. 별도 래퍼 파일 없이 필요한 곳에서 즉시 사용 |
 | `tools/final_dict_raffello_metadata.json` | - | DB 칼럼 메타데이터 스키마 (참조 데이터) |
 
 ---
@@ -513,5 +508,5 @@ agent-adk-data-search/
 | **콜백 훅** | before_agent / before_model / after_tool | 에이전트 실행 전후 데이터 가공 |
 | **RAG** | ChromaDB + BGE-M3-KO | 유사 문서를 LLM 컨텍스트에 주입하여 SQL 정확도 향상 |
 | **Artifact 관리** | AppState + State Manager | 세션별 독립적 결과물 추적 (이미지, 테이블) |
-| **Tool 중앙화** | FastMCP 서버 + ADK 래퍼 | Tool 로직을 mcp_server.py에 중앙화, ADK Tool은 래퍼로 구현하여 중복 제거 및 MCP 프로토콜 지원 |
+| **Tool 중앙화** | FastMCP 서버 + 인라인 어댑터 | Tool 로직을 mcp_server.py에 중앙화, 필요한 곳에서 경량 인라인 어댑터로 직접 사용하여 중복 제거 및 MCP 프로토콜 지원 |
 | **표준화된 Tool 응답** | ToolResponse / ToolResponseData | 모든 도구가 동일한 형식으로 결과 반환, MCP 변환 지원 |
