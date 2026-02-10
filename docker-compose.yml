@@ -1,0 +1,66 @@
+version: '3.8'
+
+services:
+  agent-adk-data-search:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: agent-adk-data-search
+    ports:
+      - "8000:8000"
+    environment:
+      # LLMs
+      - PADO_API_KEY=${PADO_API_KEY}
+      - PADO_MODEL_NAME=${PADO_MODEL_NAME}
+      - PADO_MODEL_API=${PADO_MODEL_API}
+      - GPT_OSS_120B_API_BASE=${PADO_MODEL_API}
+      - GPT_OSS_120B_MODEL=${PADO_MODEL_NAME}
+      - OPENAI_API_KEY=${PADO_API_KEY}
+
+      # Embeddings
+      - TEXT_EMBEDDING_MODEL_URL=${TEXT_EMBEDDING_MODEL_URL}
+      - TEXT_EMBEDDING_MODEL_NAME=${TEXT_EMBEDDING_MODEL_NAME}
+
+      # Agents
+      - ROOT_AGENT_API_BASE=${GPT_OSS_120B_API_BASE}
+      - ROOT_AGENT_MODEL=${GPT_OSS_120B_MODEL}
+      - SUB_AGENT_API_BASE=${GPT_OSS_120B_API_BASE}
+      - SUB_AGENT_MODEL=${GPT_OSS_120B_MODEL}
+      - DATA_SEARCH_AGENT_BASE=${GPT_OSS_120B_API_BASE}
+      - DATA_SEARCH_MODEL=${GPT_OSS_120B_MODEL}
+
+      # Database - PostgreSQL
+      - POSTGRESQL_DB_USER=${POSTGRESQL_DB_USER}
+      - POSTGRESQL_DB_PASS=${POSTGRESQL_DB_PASS}
+      - POSTGRESQL_DB_NAME=${POSTGRESQL_DB_NAME}
+      - POSTGRESQL_DB_HOST=${POSTGRESQL_DB_HOST}
+      - POSTGRESQL_DB_PORT=${POSTGRESQL_DB_PORT}
+      - POSTGRESQL_DB_TABLE=${POSTGRESQL_DB_TABLE}
+
+      # Database - ChromaDB
+      - CHROMADB_HOST=${CHROMADB_HOST}
+      - CHROMADB_PORT=${CHROMADB_PORT}
+      - CHROMADB_COLLECTION_NAME=${CHROMADB_COLLECTION_NAME}
+
+      # Server config
+      - HOST=0.0.0.0
+      - PORT=8000
+    restart: always
+    volumes:
+      # Optional: Mount logs or data directories if needed
+      - ./logs:/app/logs
+    networks:
+      - agent-network
+    # Optionally add resource limits
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 4G
+        reservations:
+          cpus: '1'
+          memory: 2G
+
+networks:
+  agent-network:
+    driver: bridge
