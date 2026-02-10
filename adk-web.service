@@ -1,0 +1,18 @@
+[Unit]
+Description=ADK Data Search Web Service
+After=network.target
+
+[Service]
+Type=simple
+User=www-data
+WorkingDirectory=/opt/agent-adk-data-search
+Environment="PATH=/opt/agent-adk-data-search/venv/bin:/usr/local/bin:/usr/bin:/bin"
+EnvironmentFile=/opt/agent-adk-data-search/.env
+ExecStart=/opt/agent-adk-data-search/venv/bin/adk web --host 0.0.0.0 --port 8000
+Restart=always
+RestartSec=10
+StandardOutput=append:/var/log/adk-web.log
+StandardError=append:/var/log/adk-web.log
+
+[Install]
+WantedBy=multi-user.target
