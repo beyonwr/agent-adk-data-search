@@ -1,0 +1,111 @@
+version: '3.8'
+
+services:
+  # Main application
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: agent-adk-app
+    restart: unless-stopped
+    env_file:
+      - .env.production
+    environment:
+      # Database connection (internal Docker network)
+      POSTGRESQL_DB_HOST: postgres
+      POSTGRESQL_DB_PORT: 5432
+      # ChromaDB connection (internal Docker network)
+      CHROMADB_HOST: chromadb
+      CHROMADB_PORT: 8000
+    depends_on:
+      postgres:
+        condition: service_healthy
+      chromadb:
+        condition: service_started
+    volumes:
+      # Persist artifacts and logs
+      - ./artifacts:/app/artifacts
+      - ./logs:/app/logs
+    networks:
+      - agent-network
+
+  # PostgreSQL Database
+  postgres:
+    image: postgres:16-alpine
+    container_name: agent-adk-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRESQL_DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRESQL_DB_PASS:-postgres}
+      POSTGRES_DB: ${POSTGRESQL_DB_NAME:-agent_db}
+      # Performance tuning for production
+      POSTGRES_SHARED_BUFFERS: 256MB
+      POSTGRES_EFFECTIVE_CACHE_SIZE: 1GB
+      POSTGRES_WORK_MEM: 16MB
+      POSTGRES_MAINTENANCE_WORK_MEM: 128MB
+    ports:
+      - "5432:5432"
+    volumes:
+      # Persist database data
+      - postgres_data:/var/lib/postgresql/data
+      # Optional: Initialize scripts
+      # - ./init-db:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRESQL_DB_USER:-postgres}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - agent-network
+
+  # ChromaDB Vector Database
+  chromadb:
+    image: chromadb/chroma:latest
+    container_name: agent-adk-chromadb
+    restart: unless-stopped
+    environment:
+      # ChromaDB configuration
+      CHROMA_SERVER_HOST: 0.0.0.0
+      CHROMA_SERVER_HTTP_PORT: 8000
+      ANONYMIZED_TELEMETRY: false
+    ports:
+      - "8000:8000"
+    volumes:
+      # Persist vector data
+      - chromadb_data:/chroma/chroma
+    networks:
+      - agent-network
+
+  # Optional: BGE-M3-KO Embedding Server
+  # Uncomment if you want to run embedding server in the same stack
+  # embedding:
+  #   image: your-embedding-server-image:latest
+  #   container_name: agent-adk-embedding
+  #   restart: unless-stopped
+  #   environment:
+  #     MODEL_NAME: bge-m3-ko
+  #   ports:
+  #     - "18000:18000"
+  #   volumes:
+  #     - embedding_models:/models
+  #   networks:
+  #     - agent-network
+  #   deploy:
+  #     resources:
+  #       reservations:
+  #         devices:
+  #           - driver: nvidia
+  #             count: 1
+  #             capabilities: [gpu]
+
+volumes:
+  postgres_data:
+    driver: local
+  chromadb_data:
+    driver: local
+  # embedding_models:
+  #   driver: local
+
+networks:
+  agent-network:
+    driver: bridge

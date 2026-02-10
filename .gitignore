@@ -1,10 +1,54 @@
+# Environment files
 *.env
+*.env.local
+.env.production
+.env.production.local
+.env.*.local
+
+# Python
 *.lock
 *.venv
 *.toml
 *.pyc
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
 
-
+# ADK
 main.py
 agents/.adk
 .adk
+
+# Docker
+docker-compose.override.yml
+
+# Logs
+*.log
+logs/
+app.log
+
+# Artifacts
+artifacts/
+
+# Backups
+backups/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Build
+dist/
+build/
+*.egg-info/
