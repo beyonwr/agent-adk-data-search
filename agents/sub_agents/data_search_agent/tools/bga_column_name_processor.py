@@ -1,44 +1,59 @@
+"""
+BGA Column Name Processor - Wrapper for FastMCP Tools
+
+This module provides backward-compatible wrappers for existing code that
+imports these functions. The actual implementations are now centralized
+in agents.mcp_server for consistency and maintainability.
+
+DEPRECATED: This module is maintained for backward compatibility.
+New code should import directly from agents.mcp_server.
+"""
 import logging
-import os
+from typing import List
 
-import chromadb
-import chromadb.config
-import requests
-
-CHROMADB_HOST = os.getenv("CHROMADB_HOST")
-CHROMADB_PORT = int(os.getenv("CHROMADB_PORT", "8000"))
-CHROMADB_COLLECTION_NAME = os.getenv("CHROMADB_COLLECTION_NAME")
-TEXT_EMBEDDING_MODEL_URL = os.getenv("TEXT_EMBEDDING_MODEL_URL")
-TEXT_EMBEDDING_MODEL_NAME = os.getenv("TEXT_EMBEDDING_MODEL_NAME")
+# Import the FastMCP tool implementations
+from agents import mcp_server
 
 
-def _get_embedding(text_list: list[str]) -> list[list[float]]:
-    """get embedding from the BGE-M3-KO model"""
-    response = requests.post(
-        TEXT_EMBEDDING_MODEL_URL,
-        json={
-            "input": text_list,
-            "model": TEXT_EMBEDDING_MODEL_NAME,
-        },
-        headers={"Content-Type": "application/json"}
-    )
-    response.raise_for_status()
-    res_data = response.json()["data"]
-    logging.debug(f"vectorDB res {len(res_data)=} {len(res_data[0]['embedding'])}")
-    embeddings = list(map(lambda data: data["embedding"], res_data))
-    return embeddings
+def get_sim_search(query_list: List[str], n_results: int = 3) -> List[List[str]]:
+    """
+    Perform similarity search using ChromaDB to find relevant documents.
 
-def get_sim_search(query_list: list[str], n_results: int=3):
-    chroma_client = chromadb.HttpClient(
-        host=CHROMADB_HOST,
-        port=CHROMADB_PORT,
-        settings=chromadb.config.Settings(allow_reset=True, anonymized_telemetry=False)
-    )
+    DEPRECATED: Use agents.mcp_server.get_sim_search instead.
 
-    collection = chroma_client.get_collection(CHROMADB_COLLECTION_NAME)
+    Args:
+        query_list: List of query strings to search for
+        n_results: Number of results to return (default: 3)
 
-    embeddings = _get_embedding(query_list)
+    Returns:
+        List of document lists (ChromaDB format)
+    """
+    logging.debug(f"[DEPRECATED] get_sim_search called with {len(query_list)} queries")
 
-    query_res = collection.query(query_embeddings=embeddings, n_results=n_results)
-    logging.debug(f"{query_res}")
-    return query_res["documents"]
+    # Call the FastMCP implementation
+    result = mcp_server.get_sim_search(query_list, n_results)
+
+    if result.get("status") == "success":
+        # Return in the old format for backward compatibility
+        return result.get("documents", [[]])
+    else:
+        logging.error("Failed to perform similarity search")
+        return [[]]
+
+
+def _get_embedding(text_list: List[str]) -> List[List[float]]:
+    """
+    Get embeddings from the BGE-M3-KO model.
+
+    DEPRECATED: Use agents.mcp_server._get_embedding instead.
+
+    Args:
+        text_list: List of texts to embed
+
+    Returns:
+        List of embedding vectors
+    """
+    logging.debug(f"[DEPRECATED] _get_embedding called with {len(text_list)} texts")
+
+    # Call the FastMCP implementation
+    return mcp_server._get_embedding(text_list)

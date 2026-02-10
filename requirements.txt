@@ -5,6 +5,7 @@ pandas
 python-dateutil
 PyYAML
 mcp
+fastmcp
 chromadb
 requests
 litellm

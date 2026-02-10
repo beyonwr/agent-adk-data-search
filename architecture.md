@@ -1,8 +1,20 @@
 # Agent ADK Data Search - System Architecture
 
-> **Framework**: Google Agent Development Kit (ADK)
+> **Framework**: Google Agent Development Kit (ADK) + FastMCP
 > **목적**: 자연어 질의 → SQL 생성 → DB 조회 자동화 시스템
 > **언어**: Python 3.13
+
+## FastMCP 통합
+
+이 시스템은 **FastMCP**를 사용하여 모든 Tool 구현을 중앙화했습니다:
+
+- **Tool 중앙화**: 모든 Tool 로직이 `agents/mcp_server.py`에 FastMCP 데코레이터로 구현됨
+- **이중 사용 가능**:
+  1. ADK Tool로 직접 import하여 사용
+  2. 독립 실행형 MCP 서버로 실행하여 외부 클라이언트에 노출
+- **ADK 래퍼**: 기존 ADK Tool 파일들은 `mcp_server`의 함수를 호출하는 경량 래퍼로 변경
+- **중복 제거**: Tool 로직이 한 곳에만 존재하여 유지보수성 향상
+- **MCP 프로토콜 지원**: FastMCP가 자동으로 MCP 프로토콜 구현 및 Tool 문서화 제공
 
 ---
 
@@ -386,8 +398,9 @@ agent-adk-data-search/
 ├── requirements.txt                   # Python 의존성 목록
 │
 └── agents/
-    ├── __init__.py
+    ├── __init__.py                    # 패키지 초기화, mcp_server export
     ├── agent.py                       # Root Agent 정의
+    ├── mcp_server.py                  # ⭐ FastMCP 서버 - 모든 Tool 구현 중앙화
     ├── prompt.yaml                    # Root Agent 프롬프트
     │
     ├── constants/
@@ -418,10 +431,10 @@ agent-adk-data-search/
             │   └── __init__.py        # (빈 파일 — 중첩 sub-agent 미구현)
             └── tools/
                 ├── __init__.py                       # 도구 export
-                ├── column_name_extraction_tools.py   # exit_column_extraction_loop()
-                ├── sql_generator_tools.py            # query_bga_database(), RAG callback
-                ├── bga_column_name_processor.py       # 벡터 임베딩 + ChromaDB 검색
-                └── final_dict_raffello_metadata.json  # DB 칼럼 메타데이터 스키마
+                ├── column_name_extraction_tools.py   # ADK 래퍼 for exit_column_extraction_loop
+                ├── sql_generator_tools.py            # ADK 래퍼 for query_bga_database, RAG callback
+                ├── bga_column_name_processor.py      # DEPRECATED 호환성 래퍼
+                └── final_dict_raffello_metadata.json # DB 칼럼 메타데이터 스키마
 ```
 
 ---
@@ -455,13 +468,19 @@ agent-adk-data-search/
 | `utils/log_utils.py` | 37 | 세션별 파일 로깅. `./artifacts/agents/{user_id}/{session_id}/` 경로에 로그 파일 생성 |
 | `utils/model_communication_utils.py` | 77 | JSON 코드 블록 파싱(`parse_json_code_block`), 비동기 단건/병렬 HTTP POST 요청(`post_single_url_async`, `post_parallel_async`) |
 
-### 도구
+### FastMCP 서버
 
 | 파일 | 줄 수 | 역할 |
 |------|-------|------|
-| `tools/column_name_extraction_tools.py` | 25 | `exit_column_extraction_loop()`: 칼럼 추출 완료 시 `escalate=True`로 루프 탈출 |
-| `tools/sql_generator_tools.py` | 86 | `query_bga_database()`: PostgreSQL 비동기 쿼리 실행. `get_sql_query_references_before_model_callback()`: RAG 검색 및 컨텍스트 주입. `_serialize_for_cell()`: NBSP 제거 유틸 |
-| `tools/bga_column_name_processor.py` | 44 | `_get_embedding()`: BGE-M3-KO 임베딩 생성. `get_sim_search()`: ChromaDB 벡터 유사도 검색 |
+| `mcp_server.py` | 208 | **FastMCP 기반 Tool 중앙화 서버**. 모든 Tool 구현을 FastMCP 데코레이터로 정의. ADK Tool에서 직접 import 가능하며, 독립 실행형 MCP 서버로도 사용 가능. Tool: `exit_column_extraction_loop`, `query_bga_database`, `get_sim_search`, `get_sql_query_references` |
+
+### 도구 (ADK 래퍼)
+
+| 파일 | 줄 수 | 역할 |
+|------|-------|------|
+| `tools/column_name_extraction_tools.py` | ~40 | **ADK 래퍼**: `exit_column_extraction_loop()`. `mcp_server`의 Tool을 호출하여 칼럼 추출 완료 시 `escalate=True`로 루프 탈출. ToolContext 처리 및 ToolResponse 변환 포함 |
+| `tools/sql_generator_tools.py` | ~100 | **ADK 래퍼**: `query_bga_database()`, `get_sql_query_references_before_model_callback()`. `mcp_server`의 Tool을 호출하여 PostgreSQL 비동기 쿼리 실행 및 RAG 검색 수행. ToolContext/CallbackContext 처리 포함 |
+| `tools/bga_column_name_processor.py` | ~60 | **호환성 래퍼 (DEPRECATED)**: `_get_embedding()`, `get_sim_search()`. 기존 코드 호환성을 위해 `mcp_server`의 함수를 래핑. 새 코드는 `mcp_server`를 직접 import 권장 |
 | `tools/final_dict_raffello_metadata.json` | - | DB 칼럼 메타데이터 스키마 (참조 데이터) |
 
 ---
@@ -472,6 +491,7 @@ agent-adk-data-search/
 |------|------|------|
 | **언어** | Python 3.13 | 전체 시스템 |
 | **에이전트 프레임워크** | Google Agent Development Kit (ADK) 1.22.1 | LlmAgent, LoopAgent, SequentialAgent |
+| **Tool 프레임워크** | FastMCP | Tool 구현 중앙화, MCP 프로토콜 자동 지원 |
 | **LLM 연동** | LiteLlm | 다양한 LLM 모델 래퍼 (환경변수로 설정) |
 | **데이터베이스** | PostgreSQL | BGA 데이터 저장소 (psycopg AsyncConnectionPool) |
 | **벡터 DB** | ChromaDB | 칼럼 설명 문서의 벡터 유사도 검색 |
@@ -479,7 +499,7 @@ agent-adk-data-search/
 | **데이터 처리** | Pandas | DataFrame 조작, CSV/XLSX 변환 |
 | **직렬화** | Pydantic v2, JSON, YAML | 모델 검증, 상태 직렬화 |
 | **비동기** | asyncio, aiohttp | 비동기 DB 쿼리, 비동기 HTTP 통신 |
-| **프로토콜** | MCP (Model Context Protocol) | 도구 실행 결과 표준 포맷 |
+| **프로토콜** | MCP (Model Context Protocol) | 도구 실행 결과 표준 포맷 및 Tool 노출 |
 
 ---
 
@@ -493,4 +513,5 @@ agent-adk-data-search/
 | **콜백 훅** | before_agent / before_model / after_tool | 에이전트 실행 전후 데이터 가공 |
 | **RAG** | ChromaDB + BGE-M3-KO | 유사 문서를 LLM 컨텍스트에 주입하여 SQL 정확도 향상 |
 | **Artifact 관리** | AppState + State Manager | 세션별 독립적 결과물 추적 (이미지, 테이블) |
+| **Tool 중앙화** | FastMCP 서버 + ADK 래퍼 | Tool 로직을 mcp_server.py에 중앙화, ADK Tool은 래퍼로 구현하여 중복 제거 및 MCP 프로토콜 지원 |
 | **표준화된 Tool 응답** | ToolResponse / ToolResponseData | 모든 도구가 동일한 형식으로 결과 반환, MCP 변환 지원 |
