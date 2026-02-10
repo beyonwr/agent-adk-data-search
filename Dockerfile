@@ -1,14 +1,20 @@
-# Use Python 3.11 slim image as base
-FROM python:3.11-slim
+# Use Python 3.11 Alpine image as base
+FROM python:3.11.14-alpine
 
 # Set working directory
 WORKDIR /app
 
-# Install system dependencies
-RUN apt-get update && apt-get install -y \
-    gcc \
-    g++ \
-    && rm -rf /var/lib/apt/lists/*
+# Install system dependencies for building Python packages
+# build-base: gcc, g++, make and other build tools
+# postgresql-dev: for psycopg
+# libffi-dev: for various Python packages
+# musl-dev: for compiling C extensions
+RUN apk add --no-cache \
+    build-base \
+    postgresql-dev \
+    libffi-dev \
+    musl-dev \
+    linux-headers
 
 # Copy requirements first for better caching
 COPY requirements.txt .
