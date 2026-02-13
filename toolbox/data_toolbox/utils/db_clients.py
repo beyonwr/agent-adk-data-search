@@ -3,15 +3,47 @@ import os
 
 import chromadb
 import chromadb.config
+import psycopg_pool
 import requests
-from agents.utils.database_utils import POOL  # Reuse existing pool
 
-# Environment variables
+# PostgreSQL Environment variables
+POSTGRES_DB_USER = os.getenv('POSTGRESQL_DB_USER')
+POSTGRES_DB_PASS = os.getenv('POSTGRESQL_DB_PASS')
+POSTGRES_DB_NAME = os.getenv('POSTGRESQL_DB_NAME')
+POSTGRES_DB_HOST = os.getenv('POSTGRESQL_DB_HOST')
+POSTGRES_DB_PORT = os.getenv('POSTGRESQL_DB_PORT')
+
+# ChromaDB Environment variables
 CHROMADB_HOST = os.getenv("CHROMADB_HOST")
 CHROMADB_PORT = int(os.getenv("CHROMADB_PORT", "8000"))
 CHROMADB_COLLECTION_NAME = os.getenv("CHROMADB_COLLECTION_NAME")
+
+# Embedding Environment variables
 TEXT_EMBEDDING_MODEL_URL = os.getenv("TEXT_EMBEDDING_MODEL_URL")
 TEXT_EMBEDDING_MODEL_NAME = os.getenv("TEXT_EMBEDDING_MODEL_NAME")
+
+# Initialize PostgreSQL connection pool
+POOL = None
+
+if POOL is None:
+    conninfo = " ".join(
+        f"{key}={val}"
+        for key, val in {
+            "user": POSTGRES_DB_USER,
+            "password": POSTGRES_DB_PASS,
+            "dbname": POSTGRES_DB_NAME,
+            "host": POSTGRES_DB_HOST,
+            "port": POSTGRES_DB_PORT
+        }.items()
+        if val is not None
+    )
+
+    POOL = psycopg_pool.AsyncConnectionPool(
+        conninfo,
+        min_size=5,
+        max_size=20,
+    )
+    logging.debug(f"data_toolbox: Database `{POSTGRES_DB_NAME}` connection pool created.")
 
 
 def get_chromadb_client():

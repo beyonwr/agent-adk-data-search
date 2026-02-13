@@ -19,7 +19,6 @@ graph TB
     end
 
     subgraph "외부 의존성"
-        POOL_SRC[agents/utils/database_utils.py<br/>POOL]
         PostgreSQL[(PostgreSQL<br/>Database)]
         ChromaDB[(ChromaDB<br/>Vector Store)]
         BGE[BGE-M3-KO<br/>Embedding API]
@@ -37,9 +36,7 @@ graph TB
     QueryTool -->|import| DBClients
     SearchTool -->|import| DBClients
 
-    DBClients -->|POOL import| POOL_SRC
-    POOL_SRC -->|연결| PostgreSQL
-
+    DBClients -->|POOL 생성 및 연결| PostgreSQL
     DBClients -->|연결| ChromaDB
     DBClients -->|호출| BGE
 
@@ -152,18 +149,19 @@ graph LR
 ```mermaid
 graph TB
     subgraph "utils/db_clients.py"
-        ImportPOOL[POOL import<br/>agents/utils/database_utils]
+        POOLCreate[POOL 생성<br/>psycopg_pool.AsyncConnectionPool]
 
         ChromaFunc[get_chromadb_client]
         EmbedFunc[get_embedding]
 
-        EnvVars[환경 변수:<br/>CHROMADB_HOST<br/>CHROMADB_PORT<br/>CHROMADB_COLLECTION_NAME<br/>TEXT_EMBEDDING_MODEL_URL<br/>TEXT_EMBEDDING_MODEL_NAME]
+        EnvVars[환경 변수:<br/>PostgreSQL: USER, PASS, NAME, HOST, PORT<br/>ChromaDB: HOST, PORT, COLLECTION_NAME<br/>Embedding: MODEL_URL, MODEL_NAME]
 
+        EnvVars --> POOLCreate
         EnvVars --> ChromaFunc
         EnvVars --> EmbedFunc
     end
 
-    style ImportPOOL fill:#e3f2fd
+    style POOLCreate fill:#e3f2fd
     style ChromaFunc fill:#f3e5f5
     style EmbedFunc fill:#f3e5f5
     style EnvVars fill:#fff9c4
@@ -229,9 +227,10 @@ agent = Agent(
 
 ## 7. 주요 설계 결정사항
 
-1. **POOL 재사용**: 중복 연결을 피하기 위해 기존 PostgreSQL 연결 풀을 import하여 사용
+1. **독립적인 POOL 관리**: data_toolbox 내부에서 자체 PostgreSQL 연결 풀을 생성 및 관리
 2. **ADK Artifacts**: 모든 결과를 artifact (CSV/JSON)로 저장하여 영속성과 공유 지원
 3. **State 메타데이터**: 파일 메타데이터를 agent state에 저장하여 추적 및 검색 가능
 4. **FastMCP 패턴**: 일관성을 위해 기존 toolbox 패턴(plot_toolbox) 따름
 5. **Metadata Tool 제거**: get_column_metadata는 참고용이었으므로 제거
 6. **data_toolbox 통합**: 다른 팀이 쉽게 import할 수 있도록 중앙화된 위치에 배치
+7. **환경 변수 기반 설정**: PostgreSQL, ChromaDB, Embedding API 모두 환경 변수로 설정 관리
