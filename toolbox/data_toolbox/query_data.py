@@ -1,16 +1,13 @@
-import io
 import logging
+import uuid
 from datetime import datetime
 from typing import Any, Dict, Optional
 
-import google.genai.types as types
 import pandas as pd
 from dateutil.tz import tzlocal
-from google.adk.tools import ToolContext
 
+from ..utils.path_resolver import save_resource
 from .utils.db_clients import get_pool
-
-STATE_QUERY_RESULTS = "workspace:query_results"
 
 
 def _serialize_for_cell(data: str) -> str:
@@ -24,26 +21,19 @@ def _serialize_for_cell(data: str) -> str:
 
 
 async def query_data(
-    tool_context: ToolContext,
     sql_query: str,
-    artifact_filename: Optional[str] = None,
+    limit: Optional[int] = None,
 ) -> Dict[str, Any]:
     """
-    Execute SQL query on PostgreSQL and save results as ADK artifact.
+    Execute SQL query on PostgreSQL and return results as CSV resource.
 
     Args:
-        tool_context: ADK ToolContext (auto-injected by calling agent)
         sql_query: Complete SQL statement for PostgreSQL database
-        artifact_filename: Optional custom filename (default: query_result_YYYYMMDD_HHMMSS.csv)
+        limit: Optional limit for number of rows to return (default: no limit)
 
     Returns:
-        Dict with status, filename, version, row_count, columns, sample_rows
+        Dict with status and outputs (resource_link type with CSV file)
     """
-    # Generate default filename with timestamp
-    if artifact_filename is None:
-        now = datetime.now(tzlocal())
-        artifact_filename = f'query_result_{now.strftime("%Y%m%d_%H%M%S")}.csv'
-
     # Sanitize SQL query
     sql_query = _serialize_for_cell(sql_query)
 
@@ -69,72 +59,48 @@ async def query_data(
     if not records:
         # Empty result set
         return {
-            "status": "success",
-            "message": "Query executed successfully but returned no results",
-            "row_count": 0,
-            "columns": columns,
+            "status": "error",
+            "outputs": [
+                {
+                    "type": "EMPTY_RESULT",
+                    "message": "Query executed successfully but returned no results"
+                }
+            ]
         }
 
     data_df = pd.DataFrame.from_records(records)
     row_count = len(data_df)
 
-    # Generate CSV bytes
-    csv_text = data_df.to_csv(index=False, encoding="utf-8-sig")
-    csv_bytes = csv_text.encode(encoding="utf-8-sig")
+    # Apply limit if specified
+    if limit is not None and limit > 0:
+        data_df = data_df.head(limit)
 
-    # Create artifact
-    csv_artifact = types.Part.from_bytes(data=csv_bytes, mime_type="text/csv")
+    # Save as CSV resource
+    job_id = uuid.uuid4().hex
+    csv_uri, csv_filename, csv_mime_type = save_resource(data_df, job_id, "csv")
 
-    # Save artifact
-    try:
-        version = await tool_context.save_artifact(
-            filename=artifact_filename,
-            artifact=csv_artifact
-        )
-    except Exception as e:
-        logging.error(f"Error saving artifact: {e}")
-        return {
-            "status": "error",
-            "message": f"Error saving artifact: {e}",
-        }
+    # Generate description
+    description = (
+        f"SQL 쿼리 결과 | {row_count}행 × {len(columns)}열 | "
+        f"컬럼: {', '.join(columns[:5])}"
+        f"{'...' if len(columns) > 5 else ''}"
+    )
 
-    # Generate metadata profile
-    profile = {
-        "filename": artifact_filename,
-        "version": int(version) if version is not None else None,
-        "mime_type": "text/csv",
-        "bytes": len(csv_bytes),
-        "timestamp": datetime.now(tzlocal()).isoformat(),
-        "row_count": row_count,
-        "columns": columns,
-    }
-
-    # Try to generate additional metadata
-    try:
-        profile["dtypes"] = {c: str(data_df[c].dtype) for c in data_df.columns}
-
-        # Sample rows (first 10)
-        sample_rows = data_df.head(10).to_dict(orient="records")
-        profile["sample_rows"] = sample_rows
-    except Exception as e:
-        logging.warning(f"Error generating additional metadata: {e}")
-        profile["metadata_error"] = str(e)
-
-    # Store in state
-    state_index = tool_context.state.get(STATE_QUERY_RESULTS, {})
-    if not isinstance(state_index, dict):
-        state_index = {}
-
-    state_index[artifact_filename] = profile
-    tool_context.state[STATE_QUERY_RESULTS] = state_index
-
-    # Return summary
+    # Return resource link
     return {
         "status": "success",
-        "message": f"Query executed successfully. {row_count} rows saved to artifact.",
-        "filename": artifact_filename,
-        "version": version,
-        "row_count": row_count,
-        "columns": columns,
-        "sample_rows": profile.get("sample_rows", []),
+        "outputs": [
+            {
+                "type": "resource_link",
+                "uri": csv_uri,
+                "filename": csv_filename,
+                "mime_type": csv_mime_type,
+                "description": description,
+                "metadata": {
+                    "row_count": row_count,
+                    "columns": columns,
+                    "timestamp": datetime.now(tzlocal()).isoformat(),
+                }
+            }
+        ]
     }

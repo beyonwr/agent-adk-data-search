@@ -1,40 +1,28 @@
-import json
 import logging
+import uuid
 from datetime import datetime
-from typing import Any, Dict, Optional
+from typing import Any, Dict
 
-import google.genai.types as types
 from dateutil.tz import tzlocal
-from google.adk.tools import ToolContext
 
+from ..utils.path_resolver import save_resource
 from .utils.db_clients import get_chromadb_client, get_embedding, CHROMADB_COLLECTION_NAME
-
-STATE_SIMILAR_COLUMNS = "workspace:similar_columns"
 
 
 async def search_similar_columns(
-    tool_context: ToolContext,
     query_text: str,
     n_results: int = 10,
-    artifact_filename: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
     Search for similar column names using vector similarity.
 
     Args:
-        tool_context: ADK ToolContext (auto-injected by calling agent)
         query_text: Natural language query to search for similar columns
         n_results: Number of similar columns to return (default: 10)
-        artifact_filename: Optional custom filename (default: similar_columns_YYYYMMDD_HHMMSS.json)
 
     Returns:
-        Dict with status, filename, version, results (list of similar columns)
+        Dict with status and outputs (resource_link type with JSON file)
     """
-    # Generate default filename with timestamp
-    if artifact_filename is None:
-        now = datetime.now(tzlocal())
-        artifact_filename = f'similar_columns_{now.strftime("%Y%m%d_%H%M%S")}.json'
-
     logging.debug(f"Searching for similar columns: {query_text}")
 
     # Get ChromaDB client
@@ -86,60 +74,39 @@ async def search_similar_columns(
             result_item["metadata"] = metadatas[i]
         results.append(result_item)
 
-    # Convert to JSON bytes
-    json_text = json.dumps(
-        {
-            "query": query_text,
-            "n_results": n_results,
-            "results": results,
-        },
-        ensure_ascii=False,
-        indent=2
-    )
-    json_bytes = json_text.encode("utf-8")
-
-    # Create artifact
-    json_artifact = types.Part.from_bytes(data=json_bytes, mime_type="application/json")
-
-    # Save artifact
-    try:
-        version = await tool_context.save_artifact(
-            filename=artifact_filename,
-            artifact=json_artifact
-        )
-    except Exception as e:
-        logging.error(f"Error saving artifact: {e}")
-        return {
-            "status": "error",
-            "message": f"Error saving artifact: {e}",
-        }
-
-    # Generate metadata profile
-    profile = {
-        "filename": artifact_filename,
-        "version": int(version) if version is not None else None,
-        "mime_type": "application/json",
-        "bytes": len(json_bytes),
-        "timestamp": datetime.now(tzlocal()).isoformat(),
+    # Prepare JSON data
+    json_data = {
         "query": query_text,
-        "n_results": len(results),
+        "n_results": n_results,
+        "results": results,
+        "timestamp": datetime.now(tzlocal()).isoformat(),
     }
 
-    # Store in state
-    state_index = tool_context.state.get(STATE_SIMILAR_COLUMNS, {})
-    if not isinstance(state_index, dict):
-        state_index = {}
+    # Save as JSON resource
+    job_id = uuid.uuid4().hex
+    json_uri, json_filename, json_mime_type = save_resource(json_data, job_id, "json")
 
-    state_index[artifact_filename] = profile
-    tool_context.state[STATE_SIMILAR_COLUMNS] = state_index
+    # Generate description
+    top_docs = [r["document"] for r in results[:3]]
+    description = (
+        f"유사 컬럼 검색 결과 | 쿼리: '{query_text}' | {len(results)}개 결과 | "
+        f"상위 결과: {', '.join(top_docs)}"
+    )
 
-    # Return summary
+    # Return resource link
     return {
         "status": "success",
-        "message": f"Found {len(results)} similar columns.",
-        "filename": artifact_filename,
-        "version": version,
-        "query": query_text,
-        "results_count": len(results),
-        "top_results": results[:3],  # Return top 3 for preview
+        "outputs": [
+            {
+                "type": "resource_link",
+                "uri": json_uri,
+                "filename": json_filename,
+                "mime_type": json_mime_type,
+                "description": description,
+                "metadata": {
+                    "query": query_text,
+                    "results_count": len(results),
+                }
+            }
+        ]
     }

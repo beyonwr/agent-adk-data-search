@@ -1,39 +1,63 @@
 # Data Toolbox
 
-다른 팀의 DA Agent에서 사용할 수 있는 데이터 수집 도구 모음입니다.
+다른 팀의 DA Agent에서 사용할 수 있는 데이터 수집 도구 모음입니다. MCP 리소스 시스템을 사용하여 결과를 저장합니다.
 
 ## 기능
 
 ### 1. query_data
-PostgreSQL 데이터베이스에서 SQL 쿼리를 실행하고 결과를 CSV artifact로 저장합니다.
+PostgreSQL 데이터베이스에서 SQL 쿼리를 실행하고 결과를 CSV 리소스로 저장합니다.
 
 **파라미터:**
 - `sql_query` (str): 실행할 SQL 쿼리문
-- `artifact_filename` (str, optional): 저장할 파일명 (기본값: `query_result_YYYYMMDD_HHMMSS.csv`)
+- `limit` (int, optional): 반환할 최대 행 수 (기본값: 제한 없음)
 
 **반환값:**
-- `status`: 성공/실패 상태
-- `filename`: 저장된 artifact 파일명
-- `version`: artifact 버전
-- `row_count`: 결과 행 개수
-- `columns`: 컬럼 목록
-- `sample_rows`: 샘플 행 (최대 10개)
+```python
+{
+    "status": "success",
+    "outputs": [
+        {
+            "type": "resource_link",
+            "uri": "mcp://resources/<job_id>.csv",
+            "filename": "<job_id>.csv",
+            "mime_type": "text/csv",
+            "description": "SQL 쿼리 결과 | N행 × M열 | 컬럼: ...",
+            "metadata": {
+                "row_count": N,
+                "columns": [...],
+                "timestamp": "..."
+            }
+        }
+    ]
+}
+```
 
 ### 2. search_similar_columns
-ChromaDB 벡터 검색을 사용하여 유사한 컬럼명을 찾습니다.
+ChromaDB 벡터 검색을 사용하여 유사한 컬럼명을 찾고 JSON 리소스로 저장합니다.
 
 **파라미터:**
 - `query_text` (str): 검색할 자연어 텍스트
 - `n_results` (int, optional): 반환할 결과 개수 (기본값: 10)
-- `artifact_filename` (str, optional): 저장할 파일명 (기본값: `similar_columns_YYYYMMDD_HHMMSS.json`)
 
 **반환값:**
-- `status`: 성공/실패 상태
-- `filename`: 저장된 artifact 파일명
-- `version`: artifact 버전
-- `query`: 검색 쿼리
-- `results_count`: 전체 결과 개수
-- `top_results`: 상위 3개 결과
+```python
+{
+    "status": "success",
+    "outputs": [
+        {
+            "type": "resource_link",
+            "uri": "mcp://resources/<job_id>.json",
+            "filename": "<job_id>.json",
+            "mime_type": "application/json",
+            "description": "유사 컬럼 검색 결과 | 쿼리: '...' | N개 결과 | ...",
+            "metadata": {
+                "query": "...",
+                "results_count": N
+            }
+        }
+    ]
+}
+```
 
 ## 설치
 
@@ -44,6 +68,11 @@ pip install -r requirements.txt
 ## 환경 변수 설정
 
 data_toolbox를 사용하기 위해 다음 환경 변수들을 설정해야 합니다:
+
+### MCP 리소스 저장 경로
+```bash
+export MCP_RESOURCE_ROOT="/path/to/mcp/resources"
+```
 
 ### PostgreSQL
 ```bash
@@ -106,11 +135,12 @@ toolbox/data_toolbox/
 
 ## 주요 특징
 
-1. **독립적인 POOL 관리**: 자체 PostgreSQL 연결 풀을 생성 및 관리
-2. **ADK Artifacts**: 모든 결과를 artifact로 저장하여 영속성 보장
-3. **State 메타데이터**: agent state에 파일 메타데이터 저장
-4. **FastMCP 패턴**: 기존 toolbox 패턴 준수
+1. **독립적인 POOL 관리**: 자체 PostgreSQL 연결 풀을 lazy initialization으로 생성 및 관리
+2. **MCP 리소스 시스템**: 모든 결과를 MCP 리소스 (`mcp://resources/`) URI로 저장
+3. **ToolContext 불필요**: FastMCP와 완전 호환, Pydantic 오류 없음
+4. **resource_link 패턴**: bar_chart.py와 동일한 반환 형식 사용
 5. **환경 변수 기반**: 모든 설정을 환경 변수로 관리
+6. **Python 3.13.11 호환**: ChromaDB 1.4.0 지원
 
 ## 문제 해결
 

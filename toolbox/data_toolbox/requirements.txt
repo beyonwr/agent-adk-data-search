@@ -1,9 +1,5 @@
 # Data Toolbox Requirements
-# 다른 팀에서 data_toolbox를 사용하기 위한 최소 요구사항
-
-# Google ADK - Agent Development Kit
-google-adk>=1.22.1
-google-genai
+# 다른 팀에서 data_toolbox를 MCP 리소스로 사용하기 위한 최소 요구사항
 
 # Database - PostgreSQL
 psycopg-pool>=3.0.0
