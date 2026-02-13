@@ -1,12 +1,12 @@
 from .db_clients import (
-    POOL,
+    get_pool,
     CHROMADB_COLLECTION_NAME,
     get_chromadb_client,
     get_embedding,
 )
 
 __all__ = [
-    "POOL",
+    "get_pool",
     "CHROMADB_COLLECTION_NAME",
     "get_chromadb_client",
     "get_embedding",

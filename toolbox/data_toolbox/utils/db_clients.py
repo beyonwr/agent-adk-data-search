@@ -22,28 +22,43 @@ CHROMADB_COLLECTION_NAME = os.getenv("CHROMADB_COLLECTION_NAME")
 TEXT_EMBEDDING_MODEL_URL = os.getenv("TEXT_EMBEDDING_MODEL_URL")
 TEXT_EMBEDDING_MODEL_NAME = os.getenv("TEXT_EMBEDDING_MODEL_NAME")
 
-# Initialize PostgreSQL connection pool
-POOL = None
+# PostgreSQL connection pool (lazy initialization)
+_POOL = None
 
-if POOL is None:
-    conninfo = " ".join(
-        f"{key}={val}"
-        for key, val in {
-            "user": POSTGRES_DB_USER,
-            "password": POSTGRES_DB_PASS,
-            "dbname": POSTGRES_DB_NAME,
-            "host": POSTGRES_DB_HOST,
-            "port": POSTGRES_DB_PORT
-        }.items()
-        if val is not None
-    )
 
-    POOL = psycopg_pool.AsyncConnectionPool(
-        conninfo,
-        min_size=5,
-        max_size=20,
-    )
-    logging.debug(f"data_toolbox: Database `{POSTGRES_DB_NAME}` connection pool created.")
+def get_pool():
+    """
+    Get or create PostgreSQL connection pool.
+
+    Uses lazy initialization to avoid creating pool during module import
+    (which would fail if there's no async event loop).
+
+    Returns:
+        AsyncConnectionPool: PostgreSQL connection pool
+    """
+    global _POOL
+
+    if _POOL is None:
+        conninfo = " ".join(
+            f"{key}={val}"
+            for key, val in {
+                "user": POSTGRES_DB_USER,
+                "password": POSTGRES_DB_PASS,
+                "dbname": POSTGRES_DB_NAME,
+                "host": POSTGRES_DB_HOST,
+                "port": POSTGRES_DB_PORT
+            }.items()
+            if val is not None
+        )
+
+        _POOL = psycopg_pool.AsyncConnectionPool(
+            conninfo,
+            min_size=5,
+            max_size=20,
+        )
+        logging.debug(f"data_toolbox: Database `{POSTGRES_DB_NAME}` connection pool created.")
+
+    return _POOL
 
 
 def get_chromadb_client():

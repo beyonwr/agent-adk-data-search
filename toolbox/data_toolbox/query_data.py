@@ -8,7 +8,7 @@ import pandas as pd
 from dateutil.tz import tzlocal
 from google.adk.tools import ToolContext
 
-from .utils.db_clients import POOL
+from .utils.db_clients import get_pool
 
 STATE_QUERY_RESULTS = "workspace:query_results"
 
@@ -51,7 +51,8 @@ async def query_data(
 
     # Execute query
     try:
-        async with POOL.connection() as conn:
+        pool = get_pool()
+        async with pool.connection() as conn:
             async with conn.cursor() as cur:
                 await cur.execute(query=sql_query)
                 raw_res = await cur.fetchall()
