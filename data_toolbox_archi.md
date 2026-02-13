@@ -1,10 +1,10 @@
-# Data Toolbox Architecture
+# Data Toolbox 아키텍처
 
-## 1. Overall System Architecture
+## 1. 전체 시스템 아키텍처
 
 ```mermaid
 graph TB
-    subgraph "Other Team's DA Agent"
+    subgraph "다른 팀의 DA Agent"
         Agent[Data Analysis Agent]
     end
 
@@ -18,7 +18,7 @@ graph TB
         end
     end
 
-    subgraph "External Dependencies"
+    subgraph "외부 의존성"
         POOL_SRC[agents/utils/database_utils.py<br/>POOL]
         PostgreSQL[(PostgreSQL<br/>Database)]
         ChromaDB[(ChromaDB<br/>Vector Store)]
@@ -30,23 +30,23 @@ graph TB
         Artifacts[Artifacts Storage<br/>CSV/JSON files]
     end
 
-    Agent -->|uses tools| Server
-    Server -->|registers| QueryTool
-    Server -->|registers| SearchTool
+    Agent -->|도구 사용| Server
+    Server -->|등록| QueryTool
+    Server -->|등록| SearchTool
 
-    QueryTool -->|imports| DBClients
-    SearchTool -->|imports| DBClients
+    QueryTool -->|import| DBClients
+    SearchTool -->|import| DBClients
 
-    DBClients -->|imports POOL| POOL_SRC
-    POOL_SRC -->|connects| PostgreSQL
+    DBClients -->|POOL import| POOL_SRC
+    POOL_SRC -->|연결| PostgreSQL
 
-    DBClients -->|connects| ChromaDB
-    DBClients -->|calls| BGE
+    DBClients -->|연결| ChromaDB
+    DBClients -->|호출| BGE
 
-    QueryTool -->|saves results| Artifacts
-    QueryTool -->|stores metadata| State
-    SearchTool -->|saves results| Artifacts
-    SearchTool -->|stores metadata| State
+    QueryTool -->|결과 저장| Artifacts
+    QueryTool -->|메타데이터 저장| State
+    SearchTool -->|결과 저장| Artifacts
+    SearchTool -->|메타데이터 저장| State
 
     style Agent fill:#e1f5ff
     style Server fill:#fff4e1
@@ -55,7 +55,7 @@ graph TB
     style DBClients fill:#f3e5f5
 ```
 
-## 2. query_data Tool Flow
+## 2. query_data Tool 흐름
 
 ```mermaid
 sequenceDiagram
@@ -67,28 +67,28 @@ sequenceDiagram
 
     Agent->>QueryTool: query_data(sql_query)
 
-    Note over QueryTool: 1. Sanitize SQL<br/>(remove NBSP)
+    Note over QueryTool: 1. SQL 정제<br/>(NBSP 제거)
 
-    QueryTool->>POOL: Get connection
-    POOL->>DB: Execute SQL query
-    DB-->>POOL: Return rows + columns
+    QueryTool->>POOL: 연결 가져오기
+    POOL->>DB: SQL 쿼리 실행
+    DB-->>POOL: 행 + 컬럼 반환
     POOL-->>QueryTool: records[]
 
-    Note over QueryTool: 2. Convert to<br/>pandas DataFrame
+    Note over QueryTool: 2. pandas DataFrame으로<br/>변환
 
-    Note over QueryTool: 3. Generate CSV bytes<br/>(utf-8-sig encoding)
+    Note over QueryTool: 3. CSV bytes 생성<br/>(utf-8-sig encoding)
 
     QueryTool->>ADK: save_artifact(filename, csv_bytes)
     ADK-->>QueryTool: version
 
-    Note over QueryTool: 4. Generate metadata<br/>(row_count, columns,<br/>dtypes, sample_rows)
+    Note over QueryTool: 4. 메타데이터 생성<br/>(row_count, columns,<br/>dtypes, sample_rows)
 
     QueryTool->>ADK: state[workspace:query_results][filename] = metadata
 
     QueryTool-->>Agent: {status, filename, version,<br/>row_count, columns, sample_rows}
 ```
 
-## 3. search_similar_columns Tool Flow
+## 3. search_similar_columns Tool 흐름
 
 ```mermaid
 sequenceDiagram
@@ -105,7 +105,7 @@ sequenceDiagram
     ChromaClient-->>SearchTool: client
 
     SearchTool->>ChromaClient: get_collection(name)
-    ChromaClient->>ChromaDB: Get collection
+    ChromaClient->>ChromaDB: 컬렉션 가져오기
     ChromaDB-->>ChromaClient: collection
     ChromaClient-->>SearchTool: collection
 
@@ -115,23 +115,23 @@ sequenceDiagram
     SearchTool->>ChromaDB: collection.query(<br/>query_embeddings,<br/>n_results)
     ChromaDB-->>SearchTool: {documents, distances,<br/>metadatas, ids}
 
-    Note over SearchTool: Format results:<br/>combine docs + distances<br/>+ metadata + ids
+    Note over SearchTool: 결과 포맷팅:<br/>docs + distances<br/>+ metadata + ids 결합
 
-    Note over SearchTool: Convert to JSON bytes<br/>(ensure_ascii=False)
+    Note over SearchTool: JSON bytes로 변환<br/>(ensure_ascii=False)
 
     SearchTool->>ADK: save_artifact(filename, json_bytes)
     ADK-->>SearchTool: version
 
-    Note over SearchTool: Generate metadata<br/>(query, n_results)
+    Note over SearchTool: 메타데이터 생성<br/>(query, n_results)
 
     SearchTool->>ADK: state[workspace:similar_columns][filename] = metadata
 
     SearchTool-->>Agent: {status, filename, version,<br/>query, results_count, top_results}
 ```
 
-## 4. Component Details
+## 4. 컴포넌트 세부사항
 
-### 4.1 FastMCP Server Registration
+### 4.1 FastMCP 서버 등록
 
 ```mermaid
 graph LR
@@ -147,17 +147,17 @@ graph LR
     style SearchSimilar fill:#e8f5e9
 ```
 
-### 4.2 Database Clients Helper
+### 4.2 Database Clients 헬퍼
 
 ```mermaid
 graph TB
     subgraph "utils/db_clients.py"
-        ImportPOOL[Import POOL from<br/>agents/utils/database_utils]
+        ImportPOOL[POOL import<br/>agents/utils/database_utils]
 
         ChromaFunc[get_chromadb_client]
         EmbedFunc[get_embedding]
 
-        EnvVars[Environment Variables:<br/>CHROMADB_HOST<br/>CHROMADB_PORT<br/>CHROMADB_COLLECTION_NAME<br/>TEXT_EMBEDDING_MODEL_URL<br/>TEXT_EMBEDDING_MODEL_NAME]
+        EnvVars[환경 변수:<br/>CHROMADB_HOST<br/>CHROMADB_PORT<br/>CHROMADB_COLLECTION_NAME<br/>TEXT_EMBEDDING_MODEL_URL<br/>TEXT_EMBEDDING_MODEL_NAME]
 
         EnvVars --> ChromaFunc
         EnvVars --> EmbedFunc
@@ -169,7 +169,7 @@ graph TB
     style EnvVars fill:#fff9c4
 ```
 
-### 4.3 State Management
+### 4.3 State 관리
 
 ```mermaid
 graph TB
@@ -183,55 +183,55 @@ graph TB
     style SearchState fill:#e1f5ff
 ```
 
-## 5. Data Flow Summary
+## 5. 데이터 흐름 요약
 
 ### query_data:
-1. **Input**: SQL query string
-2. **Process**:
-   - Sanitize SQL (remove NBSP)
-   - Execute via PostgreSQL POOL
-   - Convert to pandas DataFrame
-   - Generate CSV with utf-8-sig encoding
-3. **Output**:
-   - CSV artifact saved to ADK
-   - Metadata stored in state
-   - Returns summary with sample rows
+1. **입력**: SQL 쿼리 문자열
+2. **처리**:
+   - SQL 정제 (NBSP 제거)
+   - PostgreSQL POOL을 통해 실행
+   - pandas DataFrame으로 변환
+   - utf-8-sig 인코딩으로 CSV 생성
+3. **출력**:
+   - ADK에 CSV artifact 저장
+   - State에 메타데이터 저장
+   - 샘플 행과 함께 요약 반환
 
 ### search_similar_columns:
-1. **Input**: Natural language query text
-2. **Process**:
-   - Get embedding from BGE-M3-KO API
-   - Query ChromaDB with vector similarity
-   - Combine results with metadata
-   - Generate JSON with full results
-3. **Output**:
-   - JSON artifact saved to ADK
-   - Metadata stored in state
-   - Returns summary with top 3 results
+1. **입력**: 자연어 검색 텍스트
+2. **처리**:
+   - BGE-M3-KO API에서 임베딩 가져오기
+   - ChromaDB에서 벡터 유사도 검색
+   - 결과와 메타데이터 결합
+   - 전체 결과를 JSON으로 생성
+3. **출력**:
+   - ADK에 JSON artifact 저장
+   - State에 메타데이터 저장
+   - 상위 3개 결과와 함께 요약 반환
 
-## 6. Usage Example
+## 6. 사용 예제
 
 ```python
 from toolbox.data_toolbox import data_toolbox
 from google.adk import Agent
 
-# Create DA agent with data_toolbox
+# data_toolbox를 사용하는 DA agent 생성
 agent = Agent(
     name="data_analysis_agent",
     tools=[data_toolbox],
     model="gemini-2.0-flash-exp",
 )
 
-# The agent can now use:
+# agent는 이제 다음 도구들을 사용할 수 있습니다:
 # - query_data(sql_query, artifact_filename)
 # - search_similar_columns(query_text, n_results, artifact_filename)
 ```
 
-## 7. Key Design Decisions
+## 7. 주요 설계 결정사항
 
-1. **POOL Reuse**: Import existing PostgreSQL connection pool to avoid duplicate connections
-2. **ADK Artifacts**: Save all results as artifacts (CSV/JSON) for persistence and sharing
-3. **State Metadata**: Store file metadata in agent state for tracking and discovery
-4. **FastMCP Pattern**: Follow existing toolbox pattern (plot_toolbox) for consistency
-5. **No Metadata Tool**: Removed get_column_metadata as metadata was reference-only
-6. **All in data_toolbox**: Centralized location for easy import by other teams
+1. **POOL 재사용**: 중복 연결을 피하기 위해 기존 PostgreSQL 연결 풀을 import하여 사용
+2. **ADK Artifacts**: 모든 결과를 artifact (CSV/JSON)로 저장하여 영속성과 공유 지원
+3. **State 메타데이터**: 파일 메타데이터를 agent state에 저장하여 추적 및 검색 가능
+4. **FastMCP 패턴**: 일관성을 위해 기존 toolbox 패턴(plot_toolbox) 따름
+5. **Metadata Tool 제거**: get_column_metadata는 참고용이었으므로 제거
+6. **data_toolbox 통합**: 다른 팀이 쉽게 import할 수 있도록 중앙화된 위치에 배치
