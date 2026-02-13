@@ -59,6 +59,44 @@ ChromaDB 벡터 검색을 사용하여 유사한 컬럼명을 찾고 JSON 리소
 }
 ```
 
+### 3. get_database_context
+현재 설정된 데이터베이스 및 환경 변수 컨텍스트 정보를 반환합니다.
+
+**파라미터:**
+없음
+
+**반환값:**
+```python
+{
+    "status": "success",
+    "context": {
+        "postgresql": {
+            "database": "your_database",
+            "host": "localhost",
+            "port": "5432",
+            "default_table": "your_table_name",
+            "note": "Use query_data() tool to execute SQL queries on this database"
+        },
+        "chromadb": {
+            "host": "localhost",
+            "port": "8000",
+            "collection": "your_collection",
+            "note": "Use search_similar_columns() tool to find relevant column names"
+        },
+        "embedding": {
+            "model": "BAAI/bge-m3",
+            "note": "Model used for vector similarity search in ChromaDB"
+        }
+    },
+    "message": "Database context retrieved successfully"
+}
+```
+
+**사용 목적:**
+- 다른 팀의 DA Agent가 작업할 데이터베이스/테이블 정보를 확인
+- 사용 가능한 ChromaDB 컬렉션 확인
+- 환경 설정 확인 및 디버깅
+
 ## 설치
 
 ```bash
@@ -81,6 +119,7 @@ export POSTGRESQL_DB_PASS="your_password"
 export POSTGRESQL_DB_NAME="your_database"
 export POSTGRESQL_DB_HOST="localhost"
 export POSTGRESQL_DB_PORT="5432"
+export POSTGRESQL_DB_TABLE="your_table_name"  # (Optional) 기본 테이블명
 ```
 
 ### ChromaDB
@@ -110,8 +149,22 @@ agent = Agent(
 )
 
 # agent는 이제 다음 도구들을 사용할 수 있습니다:
-# - query_data(sql_query, artifact_filename)
-# - search_similar_columns(query_text, n_results, artifact_filename)
+# - get_database_context()                             # 데이터베이스 컨텍스트 확인
+# - query_data(sql_query, limit)                        # SQL 쿼리 실행
+# - search_similar_columns(query_text, n_results)       # 유사 컬럼 검색
+
+# 사용 예제:
+# 1. 먼저 컨텍스트 확인
+response = await agent.run("현재 연결된 데이터베이스 정보를 알려줘")
+# -> get_database_context() 호출하여 DB명, 테이블명 등 확인
+
+# 2. SQL 쿼리 실행
+response = await agent.run("users 테이블에서 최근 10명의 사용자 정보를 가져와줘")
+# -> query_data("SELECT * FROM users ORDER BY created_at DESC", limit=10)
+
+# 3. 유사 컬럼 검색
+response = await agent.run("'사용자 이메일'과 유사한 컬럼명을 찾아줘")
+# -> search_similar_columns("사용자 이메일", n_results=10)
 ```
 
 ## 아키텍처
@@ -126,6 +179,7 @@ toolbox/data_toolbox/
 ├── server.py                      # FastMCP 서버 등록
 ├── query_data.py                  # PostgreSQL 쿼리 실행 tool
 ├── search_similar_columns.py      # ChromaDB 벡터 검색 tool
+├── get_database_context.py        # 데이터베이스 컨텍스트 정보 tool
 ├── requirements.txt               # 필수 의존성
 ├── README.md                      # 사용 설명서
 └── utils/
